@@ -11,5 +11,10 @@ export default defineConfig({
       'https://api.bilibili.com/*',
       'https://space.bilibili.com/*',
     ],
+    browser_specific_settings: {
+      gecko: {
+        id: 'biliyoutube@muyg49.github.io',
+      },
+    },
   },
 })
