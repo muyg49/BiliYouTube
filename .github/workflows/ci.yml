@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
@@ -15,7 +16,15 @@ jobs:
           version: 10.18.3
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm compile
-      - run: pnpm build:firefox
+      - run: pnpm zip:firefox
+      - name: Upload Firefox package
+        uses: actions/upload-artifact@v4
+        with:
+          name: biliyoutube-firefox-unsigned
+          path: |
+            .output/*-firefox.zip
+            .output/*-sources.zip
+          if-no-files-found: error
