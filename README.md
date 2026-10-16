@@ -20,25 +20,27 @@ The project is an independent implementation. BewlyCat and other Bilibili extens
 
 ## Development
 
-Requirements: Node.js 20+ and pnpm.
+Local development uses Node.js 22+ and pnpm because WXT and Vue are build-time tools. They are not required by the extension at runtime.
 
 ```bash
 pnpm install
 pnpm dev:firefox
 ```
 
-WXT will start a development build for Firefox. For Chromium:
+For Chromium:
 
 ```bash
 pnpm dev
 ```
 
-Production builds:
+Production packages:
 
 ```bash
-pnpm build:firefox
-pnpm build
+pnpm zip:firefox
+pnpm zip
 ```
+
+If you do not want Node.js or pnpm installed locally, GitHub Actions builds the Firefox package automatically. Open the latest successful CI run and download the `biliyoutube-firefox-unsigned` artifact. The unsigned package is intended for testing; normal Firefox releases require Mozilla signing for permanent installation.
 
 ## Project layout
 
@@ -56,4 +58,4 @@ BiliYouTube does not ask for the browser `cookies` permission. Requests to Bilib
 
 ## License
 
-Mozilla Public License 2.0 (`MPL-2.0`).
+GNU General Public License v3.0 only (`GPL-3.0-only`).
