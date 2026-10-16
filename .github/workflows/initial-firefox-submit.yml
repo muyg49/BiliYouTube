@@ -1,0 +1,49 @@
+name: Initial Firefox AMO Submission
+
+on:
+  push:
+    paths:
+      - '.github/workflows/initial-firefox-submit.yml'
+  workflow_dispatch:
+
+jobs:
+  submit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.18.3
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Type check
+        run: pnpm compile
+
+      - name: Build Firefox package and source archive
+        run: pnpm zip:firefox
+
+      - name: Lint built Firefox extension
+        run: pnpm dlx web-ext@10.7.0 lint --source-dir .output/firefox-mv2
+
+      - name: Create initial AMO listing and submit v0.1.0
+        run: |
+          mkdir -p .output/amo
+          pnpm dlx web-ext@10.7.0 sign \
+            --source-dir .output/firefox-mv2 \
+            --artifacts-dir .output/amo \
+            --channel listed \
+            --amo-metadata amo-metadata.json \
+            --upload-source-code .output/biliyoutube-0.1.0-sources.zip \
+            --approval-timeout 0 \
+            --timeout 600000 \
+            --no-input
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.FIREFOX_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.FIREFOX_JWT_SECRET }}
