@@ -21,11 +21,11 @@ const navItems = [
   { label: '动态', icon: 'dynamic', href: 'https://t.bilibili.com/' },
 ]
 
-const libraryItems = [
+const libraryItems = computed(() => [
   { label: '历史记录', icon: 'history', href: 'https://www.bilibili.com/history' },
   { label: '收藏', icon: 'favorite', href: user.value ? `https://space.bilibili.com/${user.value.mid}/favlist` : 'https://www.bilibili.com/account/favlist' },
   { label: '稍后再看', icon: 'later', href: 'https://www.bilibili.com/watchlater/list' },
-]
+])
 
 const visibleFollowing = computed(() => following.value.slice(0, 9))
 
@@ -41,7 +41,7 @@ function iconPath(icon: string): string {
     upload: 'M12 16V4m0 0L7 9m5-5 5 5M5 20h14',
     bell: 'M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4',
   }
-  return paths[icon] ?? paths.home
+  return paths[icon] ?? paths.home!
 }
 
 function search() {
