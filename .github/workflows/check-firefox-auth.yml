@@ -19,7 +19,7 @@ jobs:
           node-version: 22
       - run: pnpm install --no-frozen-lockfile
       - run: pnpm zip:firefox
-      - name: Verify Firefox Add-ons credentials
+      - name: Verify Firefox Add-ons credentials and existing listing
         run: |
           pnpm wxt submit --dry-run \
             --firefox-zip .output/*-firefox.zip \
