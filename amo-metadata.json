@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "en-US": "A YouTube-inspired desktop interface for Bilibili.",
+    "zh-CN": "为哔哩哔哩提供接近 YouTube 桌面版的界面布局。"
+  },
+  "categories": [
+    "other"
+  ],
+  "version": {
+    "license": "GPL-3.0-only",
+    "approval_notes": "BiliYouTube replaces the Bilibili home-page presentation with a YouTube-inspired interface. It talks only to Bilibili domains to fetch the signed-in user's profile, followed creators, and recommendation feed. No analytics, telemetry, advertising, or developer-operated server is used. Human-readable TypeScript/Vue source is attached to the submission."
+  }
+}
