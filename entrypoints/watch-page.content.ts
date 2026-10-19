@@ -1,5 +1,5 @@
 import { callApi } from '../lib/api'
-import type { BiliFollowing, BiliUser } from '../types/bilibili'
+import type { BiliDynamicItem, BiliDynamicPage, BiliFollowing, BiliUser } from '../types/bilibili'
 import '../styles/watch.css'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
@@ -56,6 +56,33 @@ function navLink(label: string, href: string, name: string): HTMLAnchorElement {
   text.textContent = label
   node.append(text)
   return node
+}
+
+function internalHomeUrl(hash = ''): string {
+  return `https://www.bilibili.com/${hash}`
+}
+
+function relativeTime(timestamp: number): string {
+  if (!timestamp)
+    return ''
+  const seconds = Math.max(1, Math.floor(Date.now() / 1000 - timestamp))
+  const units: Array<[number, string]> = [
+    [31_536_000, '年前'],
+    [2_592_000, '个月前'],
+    [604_800, '周前'],
+    [86_400, '天前'],
+    [3_600, '小时前'],
+    [60, '分钟前'],
+  ]
+  for (const [size, label] of units) {
+    if (seconds >= size)
+      return `${Math.floor(seconds / size)}${label}`
+  }
+  return '刚刚'
+}
+
+function dynamicSnippet(item: BiliDynamicItem): string {
+  return item.video?.title || item.text || '发布了新动态'
 }
 
 async function waitForBody(): Promise<HTMLElement> {
@@ -131,7 +158,7 @@ function decorateNativePage() {
 
 function buildBrand(): HTMLAnchorElement {
   const brand = el('a', 'byt-watch-brand')
-  brand.href = 'https://www.bilibili.com/'
+  brand.href = internalHomeUrl()
   brand.setAttribute('aria-label', 'BiliYouTube 首页')
   const mark = el('span', 'byt-watch-brand-mark')
   mark.textContent = '▶'
@@ -141,9 +168,101 @@ function buildBrand(): HTMLAnchorElement {
   return brand
 }
 
-function buildChrome() {
+function renderPopoverAvatar(face: string, name: string, className: string): HTMLElement {
+  const holder = el('span', className)
+  if (face) {
+    const image = el('img')
+    image.src = face
+    image.alt = name
+    holder.append(image)
+  }
+  else {
+    holder.textContent = name.slice(0, 1).toUpperCase()
+  }
+  return holder
+}
+
+async function showNotifications(popover: HTMLElement) {
+  popover.dataset.mode = 'notifications'
+  popover.hidden = false
+  popover.replaceChildren()
+
+  const header = el('header', 'byt-watch-popover-header')
+  const title = el('h2')
+  title.textContent = '通知'
+  const subtitle = el('span')
+  subtitle.textContent = '最近的订阅更新'
+  header.append(title, subtitle)
+  const list = el('div', 'byt-watch-notification-list')
+  const status = el('div', 'byt-watch-popover-status')
+  status.textContent = '正在加载…'
+  popover.append(header, list, status)
+
+  try {
+    const result = await callApi<BiliDynamicPage>({ type: 'dynamicFeed', filter: 'all' })
+    if (popover.dataset.mode !== 'notifications')
+      return
+    for (const item of result.items.slice(0, 8)) {
+      const link = el('a', 'byt-watch-notification-item')
+      link.href = item.video?.url || internalHomeUrl('#biliyoutube/dynamic')
+      link.append(renderPopoverAvatar(item.author.face, item.author.name, 'byt-watch-notification-avatar'))
+      const copy = el('span', 'byt-watch-notification-copy')
+      const author = el('strong')
+      author.textContent = item.author.name
+      const snippet = el('span')
+      snippet.textContent = dynamicSnippet(item)
+      const time = el('small')
+      time.textContent = relativeTime(item.published)
+      copy.append(author, snippet, time)
+      link.append(copy)
+      list.append(link)
+    }
+    status.hidden = Boolean(list.childElementCount)
+    if (!list.childElementCount)
+      status.textContent = '暂时没有新的订阅更新。'
+  }
+  catch (error) {
+    if (popover.dataset.mode !== 'notifications')
+      return
+    status.textContent = error instanceof Error ? `通知加载失败：${error.message}` : '通知加载失败。'
+  }
+}
+
+function showAccountMenu(popover: HTMLElement, user: BiliUser) {
+  popover.dataset.mode = 'account'
+  popover.hidden = false
+  popover.replaceChildren()
+
+  const header = el('header', 'byt-watch-account-header')
+  header.append(renderPopoverAvatar(user.face, user.name, 'byt-watch-account-avatar'))
+  const copy = el('div')
+  const name = el('strong')
+  name.textContent = user.name
+  const uid = el('span')
+  uid.textContent = `UID ${user.mid}`
+  copy.append(name, uid)
+  header.append(copy)
+
+  const menu = el('nav', 'byt-watch-account-menu')
+  const entries = [
+    ['你的频道', internalHomeUrl(`#biliyoutube/channel/${user.mid}`)],
+    ['订阅动态', internalHomeUrl('#biliyoutube/dynamic')],
+    ['观看记录', internalHomeUrl('#biliyoutube/history')],
+    ['播放列表', internalHomeUrl('#biliyoutube/favorites')],
+    ['稍后再看', internalHomeUrl('#biliyoutube/watch-later')],
+  ] as const
+  for (const [label, href] of entries) {
+    const link = el('a')
+    link.href = href
+    link.textContent = label
+    menu.append(link)
+  }
+  popover.append(header, menu)
+}
+
+function buildChrome(): () => void {
   if (document.getElementById('biliyoutube-watch-chrome'))
-    return
+    return () => {}
 
   const root = el('div', 'byt-watch-chrome')
   root.id = 'biliyoutube-watch-chrome'
@@ -175,12 +294,9 @@ function buildChrome() {
   const createText = el('span')
   createText.textContent = '投稿'
   create.append(createText)
-  const messages = el('a', 'byt-watch-icon-button')
-  messages.href = 'https://message.bilibili.com/'
-  messages.setAttribute('aria-label', '消息')
-  messages.append(icon('bell'))
+  const notifications = iconButton('通知', 'bell')
   const account = el('div', 'byt-watch-account-slot')
-  actions.append(create, messages, account)
+  actions.append(create, notifications, account)
   topbar.append(topLeft, search, actions)
 
   const backdrop = el('button', 'byt-watch-drawer-backdrop')
@@ -194,17 +310,17 @@ function buildChrome() {
 
   const primary = el('nav', 'byt-watch-drawer-group')
   primary.append(
-    navLink('首页', 'https://www.bilibili.com/', 'home'),
-    navLink('动态', 'https://t.bilibili.com/', 'dynamic'),
+    navLink('首页', internalHomeUrl(), 'home'),
+    navLink('动态', internalHomeUrl('#biliyoutube/dynamic'), 'dynamic'),
   )
   const library = el('nav', 'byt-watch-drawer-group')
   const you = el('h2', 'byt-watch-drawer-heading')
   you.textContent = '你'
   library.append(
     you,
-    navLink('历史记录', 'https://www.bilibili.com/#biliyoutube/history', 'history'),
-    navLink('播放列表', 'https://www.bilibili.com/#biliyoutube/favorites', 'playlist'),
-    navLink('稍后再看', 'https://www.bilibili.com/#biliyoutube/watch-later', 'later'),
+    navLink('历史记录', internalHomeUrl('#biliyoutube/history'), 'history'),
+    navLink('播放列表', internalHomeUrl('#biliyoutube/favorites'), 'playlist'),
+    navLink('稍后再看', internalHomeUrl('#biliyoutube/watch-later'), 'later'),
   )
   const subscriptions = el('section', 'byt-watch-subscriptions')
   const subHeading = el('h2', 'byt-watch-drawer-heading')
@@ -213,12 +329,23 @@ function buildChrome() {
   subscriptions.append(subHeading, subList)
   drawerBody.append(primary, library, subscriptions)
   drawer.append(drawerHeader, drawerBody)
-  root.append(topbar, backdrop, drawer)
+
+  const popover = el('section', 'byt-watch-popover')
+  popover.hidden = true
+  root.append(topbar, backdrop, drawer, popover)
   document.body.append(root)
+
+  const closePopover = () => {
+    popover.hidden = true
+    popover.dataset.mode = ''
+    popover.replaceChildren()
+  }
 
   const toggleDrawer = (open: boolean) => {
     root.classList.toggle('drawer-open', open)
     document.documentElement.classList.toggle('byt-watch-drawer-open', open)
+    if (open)
+      closePopover()
   }
   menu.addEventListener('click', () => toggleDrawer(true))
   close.addEventListener('click', () => toggleDrawer(false))
@@ -227,10 +354,40 @@ function buildChrome() {
     if (event.target instanceof Element && event.target.closest('a'))
       toggleDrawer(false)
   })
-  void populateAccount(account, subList)
+
+  notifications.addEventListener('click', (event) => {
+    event.stopPropagation()
+    if (!popover.hidden && popover.dataset.mode === 'notifications') {
+      closePopover()
+      return
+    }
+    void showNotifications(popover)
+  })
+
+  const onDocumentPointerDown = (event: PointerEvent) => {
+    if (popover.hidden)
+      return
+    const target = event.target
+    if (target instanceof Node && (popover.contains(target) || notifications.contains(target) || account.contains(target)))
+      return
+    closePopover()
+  }
+  document.addEventListener('pointerdown', onDocumentPointerDown)
+
+  void populateAccount(account, subList, popover, closePopover)
+
+  return () => {
+    document.removeEventListener('pointerdown', onDocumentPointerDown)
+    closePopover()
+  }
 }
 
-async function populateAccount(account: HTMLElement, subList: HTMLElement) {
+async function populateAccount(
+  account: HTMLElement,
+  subList: HTMLElement,
+  popover: HTMLElement,
+  closePopover: () => void,
+) {
   try {
     const user = await callApi<BiliUser | null>({ type: 'user' })
     if (!user) {
@@ -241,12 +398,21 @@ async function populateAccount(account: HTMLElement, subList: HTMLElement) {
       return
     }
 
-    const avatar = el('a', 'byt-watch-avatar')
-    avatar.href = `https://space.bilibili.com/${user.mid}`
+    const avatar = el('button', 'byt-watch-avatar byt-watch-avatar-button')
+    avatar.type = 'button'
+    avatar.setAttribute('aria-label', `${user.name} 的账号菜单`)
     const image = el('img')
     image.src = user.face
     image.alt = user.name
     avatar.append(image)
+    avatar.addEventListener('click', (event) => {
+      event.stopPropagation()
+      if (!popover.hidden && popover.dataset.mode === 'account') {
+        closePopover()
+        return
+      }
+      showAccountMenu(popover, user)
+    })
     account.replaceChildren(avatar)
 
     const following = await callApi<BiliFollowing[]>({ type: 'following', mid: user.mid, page: 1 })
@@ -263,7 +429,7 @@ function renderSubscriptions(container: HTMLElement, following: BiliFollowing[])
     container.replaceChildren()
     for (const channel of (expanded ? following : following.slice(0, 7))) {
       const item = el('a', 'byt-watch-subscription')
-      item.href = `https://space.bilibili.com/${channel.mid}`
+      item.href = internalHomeUrl(`#biliyoutube/channel/${channel.mid}`)
       const image = el('img')
       image.src = channel.face
       image.alt = channel.uname
@@ -300,7 +466,7 @@ export default defineContentScript({
   async main(ctx) {
     await waitForBody()
     document.documentElement.classList.add('byt-watch-page')
-    buildChrome()
+    const cleanupChrome = buildChrome()
     decorateNativePage()
     updateFullscreen()
 
@@ -322,6 +488,7 @@ export default defineContentScript({
       playerObserver?.disconnect()
       playerObserver = null
       observedPlayer = null
+      cleanupChrome()
       document.removeEventListener('fullscreenchange', updateFullscreen)
       document.getElementById('biliyoutube-watch-chrome')?.remove()
       clearMarkers()
