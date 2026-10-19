@@ -4,6 +4,11 @@ interface PlaybackSettings {
   rememberSpeed?: boolean
 }
 
+interface StorageChangeLike {
+  oldValue?: unknown
+  newValue?: unknown
+}
+
 const SETTINGS_KEY = 'byt:watch:settings'
 const LAST_SPEED_KEY = 'byt:watch:last-speed'
 
@@ -166,7 +171,7 @@ export default defineContentScript({
         markSpeedIntent()
     }
 
-    const onStorageChanged = (changes: Record<string, browser.storage.StorageChange>, areaName: string) => {
+    const onStorageChanged = (changes: Record<string, StorageChangeLike>, areaName: string) => {
       if (areaName !== 'local')
         return
       if (changes[SETTINGS_KEY]) {
