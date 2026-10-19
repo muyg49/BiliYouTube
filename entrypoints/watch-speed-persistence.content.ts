@@ -93,7 +93,9 @@ function scheduleCapture(video: HTMLVideoElement) {
   window.setTimeout(() => void persistCurrentSpeed(video), 300)
 }
 
-function scheduleRestore(video: HTMLVideoElement) {
+function scheduleRestore(video: HTMLVideoElement | null) {
+  if (!video)
+    return
   applyRememberedSpeed(video)
   window.setTimeout(() => applyRememberedSpeed(video), 0)
   window.setTimeout(() => applyRememberedSpeed(video), 120)
@@ -117,10 +119,6 @@ function bindVideo(video: HTMLVideoElement) {
       return
     }
 
-    // Bilibili may reset playbackRate while rebuilding the player, changing
-    // quality, switching parts, resuming playback, or navigating in-place.
-    // When speed memory is enabled, such non-user changes must never replace
-    // the stored preference.
     if (rememberedSpeed !== null && Math.abs(video.playbackRate - rememberedSpeed) > 0.01)
       scheduleRestore(video)
   }
@@ -207,11 +205,11 @@ export default defineContentScript({
         const value = changes[SETTINGS_KEY].newValue as PlaybackSettings | undefined
         rememberSpeed = Boolean(value?.rememberSpeed)
         if (rememberSpeed)
-          scheduleRestore(activeVideo as HTMLVideoElement)
+          scheduleRestore(activeVideo)
       }
       if (changes[LAST_SPEED_KEY]) {
         rememberedSpeed = validSpeed(changes[LAST_SPEED_KEY].newValue)
-        if (rememberSpeed && activeVideo)
+        if (rememberSpeed)
           scheduleRestore(activeVideo)
       }
     }
@@ -221,8 +219,6 @@ export default defineContentScript({
     document.addEventListener('keydown', onKeyDown, true)
     browser.storage.onChanged.addListener(onStorageChanged)
 
-    // Keep the stored speed authoritative for the full page lifetime rather
-    // than only during the first few seconds of player initialization.
     const timer = window.setInterval(syncVideo, 500)
 
     ctx.onInvalidated(() => {
