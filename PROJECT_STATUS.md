@@ -12,21 +12,25 @@ Last updated: 2026-10-19
 
 ## Goal
 
-Build a YouTube-style desktop interface for Bilibili while reusing Bilibili's native player and session/stateful controls, minimizing browser permissions, and keeping major navigation inside the BiliYouTube shell.
+Build a YouTube-style desktop interface for Bilibili while reusing Bilibili's native player and stateful controls, minimizing browser permissions, and keeping major navigation inside the BiliYouTube shell.
 
 Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other projects. Architecture, API usage ideas, DOM strategies, selectors, and general approaches may be studied and independently reimplemented.
 
 ## Current release state
 
 - Source package version remains `0.1.0`; release workflows override the build version at publish time.
-- Firefox `0.2.0` was submitted to AMO on 2026-10-19 after the native-first watch-page first pass.
+- Firefox `0.2.0` was submitted to AMO on 2026-10-19.
   - Validation: 0 errors, 1 warning, 0 notices.
   - AMO uploaded file ID: `5137757`.
 - Firefox `0.2.1` was submitted to AMO on 2026-10-19 after the first real Firefox test fixes.
   - Validation: 0 errors, 1 warning, 0 notices.
   - AMO uploaded file ID: `5137794`.
   - Publish workflow run: `39197607355`, successful.
-- Current development target: continue `0.2.x` refinement from real Firefox screenshots/testing. The subscription/channel work merged in PR #6 is the next test candidate.
+- Firefox `0.2.2` was submitted to AMO on 2026-10-19 after the subscriptions/channel refinement in PR #6.
+  - Validation: 0 errors, 1 warning, 0 notices.
+  - AMO uploaded file ID: `5137862`.
+  - Publish workflow run: `39201420988`, successful.
+- Current development target: continue `0.2.x` refinement from signed-in Firefox screenshots/testing.
 
 ## Implemented
 
@@ -43,45 +47,35 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Fixed top bar, centered search, responsive sidebar, account avatar.
 - Real Bilibili recommendation feed with popular-feed fallback.
 - Real following/subscription list with in-place `显示更多` / `收起`.
-- Following retrieval now pages through the signed-in user's complete following list (50 per request) so `显示更多` exposes the full available subscription list instead of only the first API page.
+- Following retrieval pages through the signed-in user's complete available following list so `显示更多` exposes the full list instead of only the first API page.
 - Responsive 16:9 video grid and infinite loading.
 - System light/dark theme support.
 
 ### Internal subscriptions, Dynamic and channels
 
-- `订阅 >` now opens a dedicated internal route (`#biliyoutube/subscriptions`) rather than being treated as an alias for Dynamic.
+- `订阅 >` opens a dedicated internal route (`#biliyoutube/subscriptions`) rather than Dynamic.
 - The subscriptions route follows the YouTube desktop model: a `最新` video grid sourced from followed creators, with an in-place `所有订阅` channel list.
-- Dynamic remains a separate internal route (`#biliyoutube/dynamic`) for social/dynamic posts.
-- Space/channel links inside the BiliYouTube shell open an internal channel route (`#biliyoutube/channel/<mid>`).
-- Channel `视频` now uses the creator's actual upload archive, paged 30 videos at a time with infinite loading and a multi-column YouTube-style grid.
+- Dynamic remains a separate internal route (`#biliyoutube/dynamic`) for social/activity posts.
+- Space/channel links inside the shell open an internal channel route (`#biliyoutube/channel/<mid>`).
+- Channel `视频` uses the creator's actual upload archive, paged 30 videos at a time with infinite loading and a multi-column YouTube-style grid.
 - Channel `动态` remains separate and uses the creator's Dynamic feed.
 - Current Bilibili upload API uses WBI signing with a legacy archive endpoint fallback for compatibility.
 - Subscriptions/Dynamic/channel routes support browser back/forward.
 
 ### Internal library views
 
-Major library navigation remains inside the BiliYouTube shell:
-
 - History: grouped entries, filtering, search, infinite cursor loading, clear-all, pause/resume and item removal.
 - Playlists: Bilibili favorite folders shown as YouTube-style playlists, detail page, search, sorting, paging, play-all and remove-from-folder.
 - Watch Later: search, per-item removal, remove-viewed, clear-all, progress and play-all.
 - Browser back/forward works for internal Home / History / Playlists / Watch Later routes.
+- Favorite-folder cover enrichment uses folder metadata and falls back to the first media cover when necessary.
 
-### First real Firefox feedback fixes (`0.2.1`)
+### Account and notification behavior
 
-The first installed `0.2.0` test exposed native-page escapes and a playlist-cover gap. `0.2.1` addresses them:
-
-- Favorite-folder cover enrichment. `x/v3/fav/folder/created/list-all` does not reliably provide covers, so BiliYouTube reads `x/v3/fav/folder/info` and falls back to the first media cover from `x/v3/fav/resource/list`.
-- Dynamic is an internal BiliYouTube route instead of sending the user to `t.bilibili.com`.
-- Space/channel links inside the homepage shell open an internal BiliYouTube channel route, including subscription entries and author links handled by the shared navigation bridge.
-- The homepage top-right bell opens an in-place recent subscription/update popover instead of the native Bilibili message page.
-- The homepage account avatar opens an in-place account menu with internal Channel, subscriptions/Dynamic, History, Playlists and Watch Later navigation.
-- The watch-page drawer's Dynamic and subscription links navigate to corresponding internal BiliYouTube routes instead of native Bilibili Dynamic/Space pages.
-- The watch-page bell opens an in-place recent subscription/update popover.
-- The watch-page avatar opens an in-place account menu with internal Channel, Dynamic, History, Playlists and Watch Later links.
-- No new browser permissions were added.
-
-The homepage internal-navigation bridge is intentionally separate from the large Vue `App.vue` shell for this iteration: it intercepts links inside the mounted BiliYouTube shadow-root UI and overlays BiliYouTube-native views without detaching Bilibili stateful modules.
+- Homepage top-right bell opens an in-place recent subscription/update popover instead of the native Bilibili message page.
+- Homepage avatar opens an in-place account menu with internal Channel, subscriptions/Dynamic, History, Playlists and Watch Later navigation.
+- Watch-page bell and avatar use corresponding in-place BiliYouTube popovers.
+- Watch-page drawer navigation keeps Dynamic and subscription/channel routes inside BiliYouTube where practical.
 
 ### Native-first watch page
 
@@ -108,10 +102,10 @@ Watch-page DOM integration is fail-open: when a selector is no longer recognized
 - `x/web-interface/nav` — current user and WBI key material.
 - `x/web-interface/wbi/index/top/feed/rcmd` — recommendation feed.
 - `x/web-interface/popular` — recommendation fallback.
-- `x/relation/followings` — subscriptions/followings; paged through for the current user's complete available list.
+- `x/relation/followings` — subscriptions/followings, paged for the current user's full available list.
 - `x/polymer/web-dynamic/v1/feed/all` — followed Dynamic feed and subscriptions/latest-video source.
 - `x/polymer/web-dynamic/v1/feed/space` — per-channel Dynamic feed.
-- `x/space/wbi/arc/search` — per-channel complete upload archive; WBI signed.
+- `x/space/wbi/arc/search` — per-channel upload archive, WBI signed.
 - `x/space/arc/search` — compatibility fallback for upload archive.
 - `x/web-interface/history/cursor` — watch history.
 - `x/v2/history/shadow` / `shadow/set` — history pause state.
@@ -136,15 +130,15 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - Do not regenerate or revoke AMO credentials unless they are confirmed lost, invalid, or compromised.
 - Minimum Firefox version: `142.0`.
 - Firefox data collection declaration: `websiteContent`.
-
-`.github/workflows/publish-firefox.yml` supports GitHub Release publishing and manual `workflow_dispatch` publishing with a version input. It sets the build version in CI, runs type checking, builds Firefox/source ZIPs and submits them to AMO.
+- `.github/workflows/publish-firefox.yml` supports GitHub Release publishing and manual `workflow_dispatch` publishing with a version input; release test branches may temporarily add a branch-specific push trigger when direct dispatch is unavailable from the connector.
 
 ## CI state
 
-- PR #4 (playlist covers + homepage internal Dynamic/channel/account/notification behavior) passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- PR #5 (watch-page internal navigation/account/notification behavior) passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- PR #6 (dedicated subscriptions view + complete following expansion + full channel upload grid) passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- Firefox `0.2.1` publish run `39197607355` succeeded, including AMO submission.
+- PR #4 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
+- PR #5 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
+- PR #6 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
+- Latest `main` CI after the PR #6 documentation update succeeded.
+- Firefox `0.2.2` publish run `39201420988` succeeded, including AMO submission.
 
 ## Architecture decisions
 
@@ -162,8 +156,8 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate the dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive in signed-in Firefox.
-2. Validate the `0.2.1` playlist-cover and account/notification fixes that have not yet received screenshot confirmation.
+1. Validate Firefox `0.2.2`: dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive.
+2. Validate playlist covers and account/notification popovers in signed-in Firefox.
 3. Test watch-page playback, controls, wide mode, web fullscreen, browser fullscreen, like/coin/favorite/share, follow, description expansion, comments/editor/replies and related-video links.
 4. Refine channel header/tabs and subscriptions grid proportions from real screenshots.
 5. Continue eliminating remaining native-page escapes where Bilibili has a meaningful equivalent inside the BiliYouTube shell.
