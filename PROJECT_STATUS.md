@@ -19,9 +19,9 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 ## Current release state
 
 - Source package version remains `0.1.0`; release workflows override the build version at publish time.
-- Latest Firefox AMO release: `0.2.7`, submitted 2026-10-19. AMO file ID: `5139772`; publish run `39269112547` succeeded with 0 errors, 1 warning, 0 notices.
-- Earlier AMO releases on 2026-10-19: `0.2.0` through `0.2.6`.
-- `main` currently contains unreleased changes after `0.2.7`: PR #13 homepage sidebar/topic-search fixes and PR #14 playback-speed/loudness rework.
+- Latest Firefox AMO release: `0.2.8`, submitted 2026-10-19. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139871`; publish run `39273467537` succeeded.
+- Firefox `0.2.8` includes the post-`0.2.7` homepage sidebar/topic-search fixes and the playback-speed/loudness rework from PR #13 and PR #14.
+- Earlier AMO releases on 2026-10-19: `0.2.0` through `0.2.7`.
 
 ## Implemented
 
@@ -36,7 +36,7 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 ### Homepage and shared shell
 
 - Custom YouTube-style homepage with fixed top bar, centered search, responsive sidebar, account avatar and real Bilibili recommendation data.
-- Hamburger menu now behaves like YouTube: expanded desktop sidebar can collapse to a compact rail and be expanded again.
+- Hamburger menu behaves like YouTube: expanded desktop sidebar can collapse to a compact rail and be expanded again.
 - Real following/subscription list with `显示更多` / `收起` and paging through available followings.
 - Responsive 16:9 recommendation grid with infinite loading.
 - Internal search and topic/category navigation stay inside BiliYouTube instead of opening Bilibili's native search UI.
@@ -87,13 +87,12 @@ Playback enhancements:
 - Collection/multi-part playback remembers the last selected episode and per-episode playback position.
 - Explicit user selection takes priority over automatic collection resume.
 - Playback-speed memory is opt-in and uses extension `storage.local`.
-- Speed persistence now has one authoritative controller only. When enabled, the stored speed remains authoritative for the full watch-page lifetime rather than only during startup.
+- Speed persistence has one authoritative controller only. When enabled, the stored speed remains authoritative for the full watch-page lifetime rather than only during startup.
 - Deliberate speed changes through Bilibili's native speed controls are persisted; non-user resets caused by player rebuilds, quality changes, part changes, pause/resume or SPA navigation are restored to the remembered value.
 - The controller writes both `playbackRate` and `defaultPlaybackRate`, restores at player lifecycle events, and performs a lightweight periodic guard so a late reset to `1x` does not stick.
 - The former duplicate speed-save path in the general playback enhancement script was removed to prevent accidental overwriting of the remembered speed.
-- Loudness normalization is enabled by default.
-- Loudness normalization no longer changes `HTMLMediaElement.volume`.
-- When enabled, the media audio is routed through a Web Audio processing chain with adaptive gain followed by peak compression. Programme level is estimated continuously from the audio signal and gain can move both up and down toward a stable target.
+- Loudness normalization is enabled by default and no longer changes `HTMLMediaElement.volume`.
+- When enabled, media audio is routed through a Web Audio processing chain with adaptive gain followed by peak compression. Programme level is estimated continuously and gain can move both up and down toward a stable target.
 - The current implementation is dynamic RMS-based loudness leveling with peak compression, not an offline EBU R128/BS.1770 scanner.
 - When loudness normalization is disabled, the processing graph is bypassed at unity gain rather than changing the player's own volume setting.
 - BYT playback settings remain behind the `BYT` control next to Bilibili's native settings gear; hover opens the panel and click pins/unpins it.
@@ -144,6 +143,8 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - Firefox `0.2.7` publish run `39269112547` succeeded, including AMO submission and validation with 0 errors.
 - PR #13 (`Fix homepage sidebar toggle and stabilize topic switching`) passed run `39271783259`; merged as `9a5a971a62e1beca0fe6f1c232fd153a1f767ce4`. Main run `39271873640` passed.
 - PR #14 (`Make speed memory authoritative and implement real loudness leveling`) passed run `39272737660`; merged as `60b7023bef1f656c8b79fa896ae0bbc8e9bd765d`. Main run `39272814389` passed.
+- Status documentation run `39273011012` passed on `main` before the `0.2.8` release.
+- Firefox `0.2.8` publish run `39273467537` succeeded. AMO validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139871`.
 
 ## Architecture decisions
 
@@ -165,7 +166,7 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate the unreleased post-`0.2.7` main build in signed-in Firefox: collapse/expand the homepage sidebar repeatedly and verify compact-rail layout at common viewport widths.
+1. Validate Firefox `0.2.8` in signed-in Firefox: collapse/expand the homepage sidebar repeatedly and verify compact-rail layout at common viewport widths.
 2. Switch rapidly between all homepage topic chips, revisit previously opened topics, and verify cached/prefetched pages appear immediately without chip-row movement.
 3. Confirm the WBI topic/search path avoids the observed intermittent HTTP 412 under normal signed-in browsing; verify cached fallback behavior if Bilibili temporarily rejects a request.
 4. Validate playback-speed memory across full Firefox restarts, quality changes, pause/resume, multi-part videos and SPA navigation; confirm native user speed changes persist while unsolicited resets do not.
