@@ -59,6 +59,62 @@ export interface BiliHistoryPage {
   hasMore: boolean
 }
 
+export type BiliFavoriteSort = 'mtime' | 'view' | 'pubtime'
+
+export interface BiliFavoriteFolder {
+  id: number
+  title: string
+  mediaCount: number
+  cover: string
+  intro: string
+  isPrivate: boolean
+}
+
+export interface BiliFavoriteItem {
+  id: number
+  type: number
+  bvid?: string
+  title: string
+  cover: string
+  intro: string
+  duration: number
+  authorName: string
+  authorMid: number
+  authorFace: string
+  view: number
+  published: number
+  favoriteAt: number
+  invalid: boolean
+  url: string
+}
+
+export interface BiliFavoritePage {
+  folder: BiliFavoriteFolder | null
+  items: BiliFavoriteItem[]
+  page: number
+  hasMore: boolean
+}
+
+export interface BiliWatchLaterItem {
+  aid: number
+  bvid: string
+  title: string
+  pic: string
+  description: string
+  duration: number
+  owner: BiliAuthor
+  view: number
+  published: number
+  progress: number
+  addedAt: number
+  url: string
+}
+
+export interface BiliWatchLaterPage {
+  count: number
+  items: BiliWatchLaterItem[]
+}
+
 export type ApiRequest =
   | { type: 'user' }
   | { type: 'feed'; page?: number }
@@ -68,6 +124,13 @@ export type ApiRequest =
   | { type: 'historySetPaused'; paused: boolean; csrf: string }
   | { type: 'historyClear'; csrf: string }
   | { type: 'historyDelete'; oid: number; business: string; csrf: string }
+  | { type: 'favoriteFolders'; mid: number }
+  | { type: 'favoritePage'; mediaId: number; page?: number; sort?: BiliFavoriteSort; keyword?: string }
+  | { type: 'favoriteDelete'; mediaId: number; resourceId: number; resourceType: number; csrf: string }
+  | { type: 'watchLater' }
+  | { type: 'watchLaterDelete'; aid: number; csrf: string }
+  | { type: 'watchLaterDeleteViewed'; csrf: string }
+  | { type: 'watchLaterClear'; csrf: string }
 
 export interface ApiResponse<T> {
   ok: boolean
