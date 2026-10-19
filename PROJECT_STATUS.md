@@ -30,7 +30,11 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
   - Validation: 0 errors, 1 warning, 0 notices.
   - AMO uploaded file ID: `5137862`.
   - Publish workflow run: `39201420988`, successful.
-- Current development target: continue `0.2.x` refinement from signed-in Firefox screenshots/testing.
+- Firefox `0.2.3` was submitted to AMO on 2026-10-19 after the watch-page playback enhancements in PR #7.
+  - Validation: 0 errors, 1 warning, 0 notices.
+  - AMO uploaded file ID: `5137910`.
+  - Publish workflow run: `39203885843`, successful.
+- Current development target: validate Firefox `0.2.3` in signed-in real-world playback and continue `0.2.x` refinement.
 
 ## Implemented
 
@@ -149,7 +153,9 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - PR #5 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
 - PR #6 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
 - PR #7 initially exposed a TypeScript 5.9 Web Audio typed-array compatibility error; the fix was committed and CI run `39203590105` then passed TypeScript compilation, Firefox packaging and artifact upload before merge.
+- Latest `main` CI before the `0.2.3` release, run `39203689695`, succeeded.
 - Firefox `0.2.2` publish run `39201420988` succeeded, including AMO submission.
+- Firefox `0.2.3` publish run `39203885843` succeeded, including AMO submission and validation with 0 errors.
 
 ## Architecture decisions
 
@@ -168,9 +174,9 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate the merged PR #7 watch-page changes in signed-in Firefox, especially ordinary videos, multi-P videos and collection/season pages.
+1. Validate Firefox `0.2.3` watch-page changes in signed-in Firefox, especially ordinary videos, multi-P videos and collection/season pages.
 2. Verify speed-memory toggling, loudness normalization, native/fallback settings UI and audio behavior across navigation, pause/resume and fullscreen modes.
-3. Validate Firefox `0.2.2`: dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive.
+3. Validate dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive.
 4. Validate playlist covers and account/notification popovers in signed-in Firefox.
 5. Test watch-page playback, controls, wide mode, web fullscreen, browser fullscreen, like/coin/favorite/share, follow, description expansion, comments/editor/replies and related-video links.
 6. Refine channel header/tabs and subscriptions grid proportions from real screenshots.
