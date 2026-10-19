@@ -17,8 +17,16 @@
   font-family: Roboto, Arial, "Noto Sans SC", sans-serif;
 }
 
+.byt-search-overlay.byt-topic-overlay {
+  top: 112px;
+}
+
 .byt-search-overlay[hidden] {
   display: none !important;
+}
+
+.byt-sidebar-collapsed .byt-search-overlay {
+  left: 72px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -37,6 +45,10 @@
   min-height: 100%;
   margin: 0 auto;
   padding: 28px 0 72px;
+}
+
+.byt-topic-page {
+  padding-top: 12px;
 }
 
 .byt-search-heading {
@@ -158,45 +170,6 @@
   -webkit-line-clamp: 2;
 }
 
-.byt-search-topicbar {
-  position: sticky;
-  top: 0;
-  z-index: 3;
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  margin: -28px 0 24px;
-  padding: 14px 0;
-  background: var(--byt-search-bg);
-  scrollbar-width: none;
-}
-
-.byt-search-topicbar::-webkit-scrollbar {
-  display: none;
-}
-
-.byt-search-topic {
-  flex: 0 0 auto;
-  height: 36px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 8px;
-  background: var(--byt-search-surface);
-  color: var(--byt-search-text);
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.byt-search-topic:hover {
-  background: var(--byt-search-hover);
-}
-
-.byt-search-topic.active {
-  background: var(--byt-search-text);
-  color: var(--byt-search-bg);
-}
-
 .byt-topic-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -233,18 +206,35 @@
   min-height: 100px;
   display: grid;
   place-items: center;
+  padding: 24px;
   color: var(--byt-search-muted);
   font-size: 13px;
+  text-align: center;
 }
 
-.byt-search-route .chipbar .chip.byt-search-chip-active {
-  background: var(--text-primary, #0f0f0f);
-  color: var(--surface-0, #fff);
+.byt-search-route .chipbar .chip[data-byt-topic-active="false"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.byt-search-route .chipbar .chip[data-byt-topic-active="true"] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+@media (min-width: 1501px) {
+  .byt-topic-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 1100px) {
   .byt-search-overlay {
     left: 72px;
+  }
+
+  .byt-sidebar-collapsed .byt-search-overlay {
+    left: 0;
   }
 
   .byt-topic-grid {
@@ -253,7 +243,8 @@
 }
 
 @media (max-width: 760px) {
-  .byt-search-overlay {
+  .byt-search-overlay,
+  .byt-sidebar-collapsed .byt-search-overlay {
     left: 0;
   }
 

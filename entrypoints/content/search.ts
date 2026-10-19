@@ -1,3 +1,5 @@
+import { signWbiQuery } from '../../lib/wbi'
+
 interface SearchVideoRaw {
   bvid?: string
   title?: string
@@ -31,12 +33,20 @@ interface SearchRoute {
   mode: SearchMode
 }
 
+interface CachedSearch {
+  data: SearchData
+  expiresAt: number
+}
+
 export interface HomepageSearchBridge {
   destroy: () => void
 }
 
 const SEARCH_PREFIX = '#biliyoutube/search?'
 const TOPICS = ['全部', '音乐', '游戏', '知识', '科技', '影视', '动画', '生活', '美食', '数码', '汽车']
+const SEARCH_CACHE_TTL = 10 * 60 * 1000
+const searchCache = new Map<string, CachedSearch>()
+const searchInflight = new Map<string, Promise<SearchData>>()
 
 function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = ''): HTMLElementTagNameMap[K] {
   const node = document.createElement(tag)
@@ -111,18 +121,26 @@ function routeHash(keyword: string, mode: SearchMode): string {
   return `#biliyoutube/search?${params}`
 }
 
-async function requestSearch(keyword: string, page: number): Promise<SearchData> {
-  const params = new URLSearchParams({
+function cacheKey(keyword: string, page: number): string {
+  return `${keyword.trim().toLocaleLowerCase()}::${page}`
+}
+
+async function fetchSearchEndpoint(keyword: string, page: number): Promise<SearchData> {
+  const values: Record<string, string> = {
     search_type: 'video',
     keyword,
     page: String(page),
     page_size: '20',
     order: 'totalrank',
     from_source: 'webtop_search',
-  })
-  const response = await fetch(`https://api.bilibili.com/x/web-interface/search/type?${params}`, {
+    web_location: '1430654',
+  }
+  const query = await signWbiQuery(values)
+  const response = await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${query}`, {
     credentials: 'include',
     headers: { Accept: 'application/json, text/plain, */*' },
+    referrer: 'https://www.bilibili.com/',
+    referrerPolicy: 'strict-origin-when-cross-origin',
   })
   if (!response.ok)
     throw new Error(`HTTP ${response.status}`)
@@ -130,6 +148,55 @@ async function requestSearch(keyword: string, page: number): Promise<SearchData>
   if (payload.code !== 0 || !payload.data)
     throw new Error(payload.message || `Bilibili API error ${payload.code}`)
   return payload.data
+}
+
+async function requestSearchNetwork(keyword: string, page: number): Promise<SearchData> {
+  try {
+    return await fetchSearchEndpoint(keyword, page)
+  }
+  catch (error) {
+    if (!(error instanceof Error) || !/HTTP 412/.test(error.message))
+      throw error
+
+    try {
+      await fetch('https://www.bilibili.com/', {
+        credentials: 'include',
+        cache: 'no-store',
+        referrer: 'https://www.bilibili.com/',
+      })
+    }
+    catch {
+      // The signed retry below is the authoritative result.
+    }
+    await new Promise(resolve => setTimeout(resolve, 250))
+    return fetchSearchEndpoint(keyword, page)
+  }
+}
+
+async function requestSearch(keyword: string, page: number): Promise<SearchData> {
+  const key = cacheKey(keyword, page)
+  const cached = searchCache.get(key)
+  if (cached && cached.expiresAt > Date.now())
+    return cached.data
+
+  const inflight = searchInflight.get(key)
+  if (inflight)
+    return inflight
+
+  const pending = requestSearchNetwork(keyword, page)
+    .then((data) => {
+      searchCache.set(key, { data, expiresAt: Date.now() + SEARCH_CACHE_TTL })
+      return data
+    })
+    .catch((error) => {
+      if (cached)
+        return cached.data
+      throw error
+    })
+    .finally(() => searchInflight.delete(key))
+
+  searchInflight.set(key, pending)
+  return pending
 }
 
 export function installHomepageSearch(container: HTMLElement): HomepageSearchBridge {
@@ -147,11 +214,7 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
   function setTopicState(keyword: string | null) {
     for (const chip of container.querySelectorAll<HTMLButtonElement>('.chipbar .chip')) {
       const label = chip.textContent?.trim() ?? ''
-      chip.classList.toggle('byt-search-chip-active', keyword ? label === keyword : label === '全部')
-      if (keyword)
-        chip.classList.toggle('active', label === keyword)
-      else
-        chip.classList.toggle('active', label === '全部')
+      chip.dataset.bytTopicActive = String(keyword ? label === keyword : label === '全部')
     }
   }
 
@@ -161,36 +224,29 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
     overlay.hidden = true
     overlay.onscroll = null
     overlay.replaceChildren()
+    overlay.classList.remove('byt-topic-overlay')
     container.classList.remove('byt-search-route')
     setTopicState(null)
+    const input = searchInput()
+    if (input)
+      input.value = ''
+  }
+
+  function returnHome(pushHistory = true) {
+    const next = new URL(location.href)
+    next.hash = ''
+    if (pushHistory)
+      window.history.pushState({ biliyoutubeView: 'home' }, '', `${next.pathname}${next.search}`)
+    else
+      window.history.replaceState({ biliyoutubeView: 'home' }, '', `${next.pathname}${next.search}`)
+    hideSearch()
+    window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
   }
 
   function pushRoute(route: SearchRoute) {
     const next = new URL(location.href)
     next.hash = routeHash(route.keyword, route.mode)
     window.history.pushState({ biliyoutubeSearch: route.keyword, mode: route.mode }, '', `${next.pathname}${next.search}${next.hash}`)
-  }
-
-  function makeTopicBar(active: string): HTMLElement {
-    const bar = element('div', 'byt-search-topicbar')
-    for (const topic of TOPICS) {
-      const button = text(element('button', 'byt-search-topic'), topic)
-      button.type = 'button'
-      button.classList.toggle('active', topic === active)
-      button.addEventListener('click', () => {
-        if (topic === '全部') {
-          const next = new URL(location.href)
-          next.hash = ''
-          window.history.pushState({ biliyoutubeView: 'home' }, '', `${next.pathname}${next.search}`)
-          hideSearch()
-          window.dispatchEvent(new PopStateEvent('popstate', { state: window.history.state }))
-          return
-        }
-        openSearch(topic, 'topic', true)
-      })
-      bar.append(button)
-    }
-    return bar
   }
 
   function videoUrl(video: SearchVideoRaw): string {
@@ -284,17 +340,16 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
     overlay.hidden = false
     overlay.scrollTop = 0
     overlay.replaceChildren()
+    overlay.classList.toggle('byt-topic-overlay', mode === 'topic')
     container.classList.add('byt-search-route')
     setTopicState(mode === 'topic' ? trimmed : null)
 
     const input = searchInput()
     if (input)
-      input.value = trimmed
+      input.value = mode === 'search' ? trimmed : ''
 
     const page = element('div', `byt-search-page ${mode === 'topic' ? 'byt-topic-page' : 'byt-search-results-page'}`)
-    if (mode === 'topic')
-      page.append(makeTopicBar(trimmed))
-    else {
+    if (mode === 'search') {
       const heading = element('header', 'byt-search-heading')
       heading.append(text(element('h1'), `“${trimmed}”的搜索结果`))
       page.append(heading)
@@ -335,7 +390,10 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
       catch (error) {
         if (token !== routeToken)
           return
-        status.textContent = error instanceof Error ? `搜索加载失败：${error.message}` : '搜索加载失败。'
+        const message = error instanceof Error ? error.message : String(error)
+        status.textContent = /412/.test(message)
+          ? 'Bilibili 暂时限制了搜索请求，请稍后重试。已加载过的标签仍可从缓存打开。'
+          : `搜索加载失败：${message}`
         totalPages = 0
       }
       finally {
@@ -369,6 +427,17 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
       void openSearch(keyword, 'search', true)
   }
 
+  function onPointerOver(rawEvent: Event) {
+    const target = rawEvent.target
+    if (!(target instanceof Element))
+      return
+    const chip = target.closest('.chipbar .chip') as HTMLButtonElement | null
+    const topic = chip?.textContent?.trim() ?? ''
+    if (!topic || topic === '全部' || !TOPICS.includes(topic))
+      return
+    void requestSearch(topic, 1).catch(() => {})
+  }
+
   function onClick(rawEvent: Event) {
     if (!(rawEvent instanceof MouseEvent) || rawEvent.button !== 0)
       return
@@ -376,7 +445,13 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
     const button = path.find(node => node instanceof HTMLButtonElement) as HTMLButtonElement | undefined
     if (button?.classList.contains('chip')) {
       const topic = button.textContent?.trim() ?? ''
-      if (topic && topic !== '全部') {
+      if (topic === '全部' && currentRoute?.mode === 'topic') {
+        rawEvent.preventDefault()
+        rawEvent.stopPropagation()
+        returnHome(true)
+        return
+      }
+      if (topic && topic !== '全部' && TOPICS.includes(topic)) {
         rawEvent.preventDefault()
         rawEvent.stopPropagation()
         void openSearch(topic, 'topic', true)
@@ -395,6 +470,7 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
   }
 
   container.addEventListener('submit', onSubmit, true)
+  container.addEventListener('pointerover', onPointerOver, true)
   container.addEventListener('click', onClick, true)
   window.addEventListener('popstate', syncFromLocation)
   syncFromLocation()
@@ -403,6 +479,7 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
     destroy() {
       routeToken += 1
       container.removeEventListener('submit', onSubmit, true)
+      container.removeEventListener('pointerover', onPointerOver, true)
       container.removeEventListener('click', onClick, true)
       window.removeEventListener('popstate', syncFromLocation)
       overlay.remove()
