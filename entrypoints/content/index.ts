@@ -11,7 +11,7 @@ function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
 }
 
-async function waitForBody(): Promise<HTMLBodyElement> {
+async function waitForBody(): Promise<HTMLElement> {
   if (document.body)
     return document.body
 
