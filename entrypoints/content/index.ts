@@ -11,15 +11,32 @@ function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
 }
 
+async function waitForBody(): Promise<HTMLElement> {
+  if (document.body)
+    return document.body
+
+  return await new Promise((resolve) => {
+    const observer = new MutationObserver(() => {
+      if (!document.body)
+        return
+      observer.disconnect()
+      resolve(document.body)
+    })
+    observer.observe(document.documentElement, { childList: true })
+  })
+}
+
 export default defineContentScript({
   matches: ['https://www.bilibili.com/*'],
+  runAt: 'document_start',
   cssInjectionMode: 'ui',
   async main(ctx) {
     if (!isBilibiliHomepage())
       return
 
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    const body = await waitForBody()
+    const previousOverflow = body.style.overflow
+    body.style.overflow = 'hidden'
 
     const ui = await createShadowRootUi(ctx, {
       name: 'biliyoutube-root',
@@ -29,12 +46,14 @@ export default defineContentScript({
         const app = createApp(App)
         app.mount(container)
         const navigation = installInternalNavigation(container)
+        document.documentElement.classList.remove('byt-homepage-booting')
         return { app, navigation }
       },
       onRemove(state) {
         state?.navigation.destroy()
         state?.app.unmount()
-        document.body.style.overflow = previousOverflow
+        document.documentElement.classList.remove('byt-homepage-booting')
+        body.style.overflow = previousOverflow
       },
     })
 

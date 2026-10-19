@@ -1,0 +1,15 @@
+html.byt-homepage-booting,
+html.byt-homepage-booting body {
+  background: #fff !important;
+}
+
+html.byt-homepage-booting body {
+  visibility: hidden !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  html.byt-homepage-booting,
+  html.byt-homepage-booting body {
+    background: #0f0f0f !important;
+  }
+}

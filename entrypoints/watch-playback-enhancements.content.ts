@@ -70,7 +70,6 @@ let mutationScheduled = false
 let locationKey = ''
 let activeCollection: CollectionContext | null = null
 let collectionCheckToken = 0
-let lastCenteredKey = ''
 let lastProgressWrite = 0
 let lastCollectionWrite = 0
 let settingsPanel: HTMLElement | null = null
@@ -495,41 +494,6 @@ function detectCollection(): CollectionContext | null {
   }
 }
 
-function findScrollableAncestor(item: HTMLElement, boundary: HTMLElement): HTMLElement | null {
-  let node: HTMLElement | null = item.parentElement
-  while (node) {
-    const style = getComputedStyle(node)
-    const canScroll = node.scrollHeight > node.clientHeight + 12
-      && /(auto|scroll)/.test(style.overflowY)
-    if (canScroll)
-      return node
-    if (node === boundary)
-      break
-    node = node.parentElement
-  }
-  if (boundary.scrollHeight > boundary.clientHeight + 12)
-    return boundary
-  return null
-}
-
-function centerCurrentCollectionItem(context: CollectionContext) {
-  const centerKey = `${context.key}:${context.currentTarget}`
-  if (lastCenteredKey === centerKey)
-    return
-  const anchor = context.links[context.currentIndex]
-  if (!anchor)
-    return
-  const item = anchor.closest<HTMLElement>('li, [class*="item"], [class*="episode"], [class*="card"]') ?? anchor
-  const scroller = findScrollableAncestor(item, context.container)
-  if (!scroller)
-    return
-  const itemRect = item.getBoundingClientRect()
-  const scrollerRect = scroller.getBoundingClientRect()
-  const offset = itemRect.top - scrollerRect.top - (scroller.clientHeight - itemRect.height) / 2
-  scroller.scrollTo({ top: scroller.scrollTop + offset, behavior: 'smooth' })
-  lastCenteredKey = centerKey
-}
-
 async function restoreCollectionProgress(video: HTMLVideoElement, context: CollectionContext) {
   if (video.readyState < 1 || !Number.isFinite(video.duration) || video.duration <= 0)
     return
@@ -665,7 +629,6 @@ async function syncEnhancements() {
   if (currentLocationKey !== locationKey) {
     locationKey = currentLocationKey
     activeCollection = null
-    lastCenteredKey = ''
     collectionCheckToken++
   }
 
@@ -676,7 +639,6 @@ async function syncEnhancements() {
     || activeCollection.key !== collection.key
     || activeCollection.currentTarget !== collection.currentTarget
   activeCollection = collection
-  centerCurrentCollectionItem(collection)
   if (collectionChanged) {
     await maybeResumeCollection(collection)
     if (video)
