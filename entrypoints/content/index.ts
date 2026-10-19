@@ -3,11 +3,13 @@ import { createApp } from 'vue'
 import App from '../../app/App.vue'
 import { installInternalNavigation } from './navigation'
 import { installHomepageSearch } from './search'
+import { installHomepageShell } from './shell'
 import './style.css'
 import './library.css'
 import './navigation.css'
 import './subscriptions.css'
 import './search.css'
+import './shell.css'
 
 function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
@@ -47,14 +49,16 @@ export default defineContentScript({
       onMount(container) {
         const app = createApp(App)
         app.mount(container)
+        const shell = installHomepageShell(container)
         const navigation = installInternalNavigation(container)
         const search = installHomepageSearch(container)
         document.documentElement.classList.remove('byt-homepage-booting')
-        return { app, navigation, search }
+        return { app, shell, navigation, search }
       },
       onRemove(state) {
         state?.search.destroy()
         state?.navigation.destroy()
+        state?.shell.destroy()
         state?.app.unmount()
         document.documentElement.classList.remove('byt-homepage-booting')
         body.style.overflow = previousOverflow
