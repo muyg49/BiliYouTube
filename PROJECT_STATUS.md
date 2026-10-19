@@ -19,14 +19,9 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 ## Current release state
 
 - Source package version remains `0.1.0`; release workflows override the build version at publish time.
-- Firefox `0.2.0` was submitted to AMO on 2026-10-19. AMO file ID: `5137757`.
-- Firefox `0.2.1` was submitted to AMO on 2026-10-19. AMO file ID: `5137794`; publish run `39197607355` succeeded.
-- Firefox `0.2.2` was submitted to AMO on 2026-10-19. AMO file ID: `5137862`; publish run `39201420988` succeeded.
-- Firefox `0.2.3` was submitted to AMO on 2026-10-19 after PR #7 watch playback enhancements. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137910`; publish run `39203885843` succeeded.
-- Firefox `0.2.4` was submitted to AMO on 2026-10-19 after PR #8 watch-page fixes. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137942`; publish run `39205551787` succeeded.
-- Firefox `0.2.5` was submitted to AMO on 2026-10-19 after PR #9 homepage/centering cleanup and PR #10 audio-path safety fix. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137990`; publish run `39207669577` succeeded.
-- Firefox `0.2.6` was submitted to AMO on 2026-10-19 after PR #11 internal search/persistent-speed fixes and PR #12 homepage hover-preview/action-menu work. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139744`; publish run `39268142219` succeeded.
-- Firefox `0.2.7` was submitted to AMO on 2026-10-19 with the watch-page hamburger/drawer toggle hotfix. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139772`; publish run `39269112547` succeeded.
+- Latest Firefox AMO release: `0.2.7`, submitted 2026-10-19. AMO file ID: `5139772`; publish run `39269112547` succeeded with 0 errors, 1 warning, 0 notices.
+- Earlier AMO releases on 2026-10-19: `0.2.0` through `0.2.6`.
+- `main` currently contains unreleased changes after `0.2.7`: PR #13 homepage sidebar/topic-search fixes and PR #14 playback-speed/loudness rework.
 
 ## Implemented
 
@@ -36,35 +31,33 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Firefox and Chromium build targets.
 - GitHub Actions CI and Firefox AMO publishing.
 - End users do not need Node.js or pnpm locally.
+- Homepage boot uses `document_start` hiding so the native Bilibili homepage does not flash before the BiliYouTube shell mounts; a fail-open timeout prevents permanent blank pages.
 
 ### Homepage and shared shell
 
-- Custom YouTube-style homepage.
-- Fixed top bar, centered search, responsive sidebar, account avatar.
-- Real Bilibili recommendation feed with popular-feed fallback.
-- Real following/subscription list with in-place `显示更多` / `收起` and paging through the full available following list.
-- Responsive 16:9 video grid and infinite loading.
-- System light/dark theme support.
-- Homepage boot uses a tiny `document_start` preload layer: the native Bilibili body stays hidden while the BiliYouTube Vue shadow UI mounts, then becomes visible only after BiliYouTube is ready. A 10-second fail-open timeout prevents a blank page if mounting fails.
-- Homepage search now stays inside the BiliYouTube shell using `#biliyoutube/search` routes and a YouTube-style vertical result view instead of redirecting to Bilibili's native search page.
-- Homepage topic chips such as `音乐`, `游戏`, `知识`, `科技` and others now open an internal YouTube-style video grid with paging/infinite loading; `全部` returns to the recommendation feed.
-- Internal search/topic routes participate in browser back/forward navigation.
-- Homepage thumbnails keep their rounded corners during hover instead of snapping square.
-- After a short mouse hover delay, homepage video cards request a low-resolution Bilibili playback stream and show a muted moving preview inside the existing thumbnail frame. Preview media is stopped and released when hover ends; failures fall back to the static thumbnail.
-- The homepage three-dot control now opens a YouTube-style floating action menu and keeps the clicked button visually active while the menu is open.
-- The action menu provides real `稍后再看`, `保存到播放列表`, `复制视频链接`, `不感兴趣` and `不推荐此频道` actions. Watch Later and playlist saves write to the user's Bilibili account; the two recommendation-hiding actions only affect the current BiliYouTube page session and do not submit recommendation feedback to Bilibili.
-- `保存到播放列表` opens an in-place picker backed by the user's Bilibili favorite folders. Menu actions use YouTube-style toast feedback.
-- Homepage preview/menu behavior is isolated in its own content script and reuses existing Bilibili host access; no new browser permission was added.
+- Custom YouTube-style homepage with fixed top bar, centered search, responsive sidebar, account avatar and real Bilibili recommendation data.
+- Hamburger menu now behaves like YouTube: expanded desktop sidebar can collapse to a compact rail and be expanded again.
+- Real following/subscription list with `显示更多` / `收起` and paging through available followings.
+- Responsive 16:9 recommendation grid with infinite loading.
+- Internal search and topic/category navigation stay inside BiliYouTube instead of opening Bilibili's native search UI.
+- Topic chips (`音乐`, `游戏`, `知识`, `科技`, `影视`, `动画`, `生活`, `美食`, `数码`, `汽车`) keep the same row and position while switching; only the active chip state changes.
+- Topic/search requests use Bilibili's WBI search endpoint with signed queries.
+- Topic/search page results are cached in memory for 10 minutes; identical in-flight requests are coalesced, stale cached data can be reused during transient failures, and hovering a topic chip prefetches its first page.
+- A guarded retry is used for transient HTTP 412 search rejection after refreshing the main-site session context.
+- Internal search/topic routes support browser back/forward.
+- Homepage thumbnails keep stable rounded corners on hover.
+- Homepage cards provide delayed muted moving previews using Bilibili playback streams and release preview media when hover ends.
+- Three-dot card menu is functional and YouTube-like: Watch Later, save to Bilibili favorite folder, copy video link, session-only `不感兴趣`, and session-only `不推荐此频道`.
+- Watch Later/favorite actions reuse the current Bilibili session and CSRF token without broad cookie permissions.
 
 ### Internal subscriptions, Dynamic and channels
 
-- `订阅 >` opens `#biliyoutube/subscriptions` instead of Dynamic.
-- Subscriptions uses a YouTube-style latest-video grid plus an all-subscriptions channel list.
+- `订阅 >` opens an internal subscriptions view rather than Dynamic.
+- Subscriptions uses a YouTube-style latest-video grid plus all-subscriptions channel list.
 - Dynamic remains a separate internal social/activity route.
-- Space/channel links inside the shell open `#biliyoutube/channel/<mid>`.
-- Channel `视频` uses the creator upload archive with paging/infinite loading; channel `动态` remains separate.
-- Upload archive uses WBI signing with a legacy endpoint fallback.
-- Browser back/forward works for these internal routes.
+- Space/channel links inside the shell use internal channel routes.
+- Channel `视频` uses the creator upload archive with WBI signing and legacy fallback; channel `动态` remains separate.
+- Browser back/forward works for internal routes.
 
 ### Internal library views
 
@@ -83,56 +76,35 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 
 A dedicated watch-page layer targets ordinary `www.bilibili.com/video/*` pages.
 
-Architecture rule: stateful Bilibili modules stay mounted where Bilibili created them. BiliYouTube styles/reflows them in place instead of moving or rebuilding them.
+Architecture rule: stateful Bilibili modules stay mounted where Bilibili created them. BiliYouTube styles/reflows them in place instead of rebuilding the player.
 
 Handled native regions include the player, title/info, uploader/follow area, like/coin/favorite/share toolbar, description, comments and right-side related/playlist areas.
 
-The watch shell adds a YouTube-style top bar and overlay navigation drawer. Player wide/web-fullscreen/browser-fullscreen state releases layout authority to Bilibili and hides BiliYouTube chrome where necessary.
+The watch shell adds a YouTube-style top bar and overlay navigation drawer. The hamburger button is a true toggle; clicking it again closes the drawer. Player wide/web-fullscreen/browser-fullscreen state releases layout authority to Bilibili where necessary.
 
-PR #7 added isolated playback enhancements:
+Playback enhancements:
 
-- Collection/multi-part playback remembers the last selected episode and the playback position for each episode.
+- Collection/multi-part playback remembers the last selected episode and per-episode playback position.
 - Explicit user selection takes priority over automatic collection resume.
-- Playback-speed memory is opt-in and applies the last explicitly selected speed to new videos.
+- Playback-speed memory is opt-in and uses extension `storage.local`.
+- Speed persistence now has one authoritative controller only. When enabled, the stored speed remains authoritative for the full watch-page lifetime rather than only during startup.
+- Deliberate speed changes through Bilibili's native speed controls are persisted; non-user resets caused by player rebuilds, quality changes, part changes, pause/resume or SPA navigation are restored to the remembered value.
+- The controller writes both `playbackRate` and `defaultPlaybackRate`, restores at player lifecycle events, and performs a lightweight periodic guard so a late reset to `1x` does not stick.
+- The former duplicate speed-save path in the general playback enhancement script was removed to prevent accidental overwriting of the remembered speed.
 - Loudness normalization is enabled by default.
-- No additional browser permissions were added; extension storage is reused.
-
-PR #8 fixed watch-page regressions found in signed-in Firefox testing:
-
-- Playback settings now exist only behind the `BYT` control; they are no longer duplicated inside Bilibili's native settings menu.
-- `BYT` is positioned immediately to the right of Bilibili's native settings gear rather than at the end of the control bar.
-- Hovering `BYT` opens the BiliYouTube playback panel; moving away closes it after a short delay, while clicking can pin/unpin it.
-- The right-side related-video cards keep Bilibili's native internal geometry so title/uploader/metadata are not clipped by BiliYouTube grid overrides.
-- Watch-page ad cards/containers are hidden in-page using DOM/CSS filtering, including recognizable advertising links/badges. No request-blocking permission was added.
-
-PR #9 removed both playlist/current-item auto-centering implementations after real-world testing showed they were unreliable and nonessential. Collection resume and per-video playback-position memory remain intact.
-
-PR #10 fixed a Firefox audio-silence risk in the original loudness normalizer:
-
-- The previous implementation used `createMediaElementSource(video)`, which routed Bilibili's audible `<video>` output through an extension-owned `AudioContext`. A suspended or unhealthy context could therefore leave playback running with no sound, including after pause/resume or reload.
-- Loudness analysis no longer sits in the native audio path. When supported, `captureStream()` / `mozCaptureStream()` creates a copied media stream used only for analysis through a zero-gain sink.
-- Native Bilibili/Firefox audio always remains direct and independent of the extension's analysis context.
-- Normalization is now attenuation-only: overly loud material can be reduced, but the extension never boosts or reroutes audible playback.
-- Disabling normalization, changing video elements, or invalidating the content script restores the native user-volume baseline, disconnects analysis nodes and closes the analysis `AudioContext`.
-- If copied-stream analysis is unsupported, suspended or fails, normalization simply becomes unavailable; native video sound continues normally.
-
-PR #11 reinforced playback-speed persistence:
-
-- The opt-in speed setting and last selected speed continue to use extension `storage.local`, so they survive browser restarts.
-- Explicit speed selections are captured more reliably and persisted immediately.
-- The stored speed is reapplied at several native-player lifecycle points and during the initial stabilization window so a late Bilibili player reset does not silently replace it with `1x` after browser startup.
-- The persistence layer shares the existing settings/storage keys and listens for storage changes, so it stays synchronized with the `BYT` playback settings panel.
-
-The post-`0.2.6` watch-page hotfix makes the top-left hamburger button a true toggle: clicking it opens the navigation drawer and clicking the same button again closes it, while backdrop/link close behavior remains intact.
-
-Watch-page DOM/audio integration remains fail-open: unrecognized native regions and unavailable enhancement APIs are left on the native path.
+- Loudness normalization no longer changes `HTMLMediaElement.volume`.
+- When enabled, the media audio is routed through a Web Audio processing chain with adaptive gain followed by peak compression. Programme level is estimated continuously from the audio signal and gain can move both up and down toward a stable target.
+- The current implementation is dynamic RMS-based loudness leveling with peak compression, not an offline EBU R128/BS.1770 scanner.
+- When loudness normalization is disabled, the processing graph is bypassed at unity gain rather than changing the player's own volume setting.
+- BYT playback settings remain behind the `BYT` control next to Bilibili's native settings gear; hover opens the panel and click pins/unpins it.
+- Watch-page ad cards/containers are hidden with DOM/CSS filtering; no request-blocking permission is added.
 
 ## Current Bilibili API layer
 
 - `x/web-interface/nav` — current user and WBI key material.
 - `x/web-interface/wbi/index/top/feed/rcmd` — recommendation feed.
 - `x/web-interface/popular` — recommendation fallback.
-- `x/web-interface/search/type` — internal homepage search/topic video results.
+- `x/web-interface/wbi/search/type` — signed internal homepage search/topic video results.
 - `x/web-interface/view` — video aid/cid metadata used by homepage preview and favorite actions.
 - `x/player/playurl` — low-resolution homepage hover preview stream lookup.
 - `x/relation/followings` — subscriptions/followings.
@@ -169,55 +141,39 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## CI state
 
-- PR #4, #5 and #6 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- PR #7 initially exposed a TypeScript 5.9 Web Audio typed-array compatibility issue; the fix passed run `39203590105` before merge.
-- Main run `39203689695` passed before the Firefox `0.2.3` release.
-- Firefox `0.2.3` publish run `39203885843` succeeded, including AMO submission.
-- PR #8 final CI run `39205082017` passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- Main run `39205177242` passed after PR #8 and status-document updates.
-- Firefox `0.2.4` publish run `39205551787` succeeded, including AMO submission and validation with 0 errors.
-- PR #9 first CI run `39206632670` caught an `HTMLBodyElement` typing mismatch in the new homepage boot helper; after correction, run `39206677575` passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- PR #10 CI run `39207551111` passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- Main run `39207605799` passed after the PR #10 audio-path fix.
-- Firefox `0.2.5` publish run `39207669577` succeeded, including AMO submission and validation with 0 errors.
-- PR #11 initially exposed TypeScript issues in the new route guard/storage-change typing; final run `39265788243` passed TypeScript compilation, Firefox packaging and artifact upload before squash merge.
-- PR #12 run `39266927285` passed TypeScript compilation, Firefox packaging and artifact upload before squash merge.
-- Main run `39267204262` passed after PR #12 and status-document updates.
-- Firefox `0.2.6` publish run `39268142219` succeeded, including AMO submission and validation with 0 errors.
-- Main run `39268879615` passed after the watch-page hamburger toggle hotfix.
 - Firefox `0.2.7` publish run `39269112547` succeeded, including AMO submission and validation with 0 errors.
+- PR #13 (`Fix homepage sidebar toggle and stabilize topic switching`) passed run `39271783259`; merged as `9a5a971a62e1beca0fe6f1c232fd153a1f767ce4`. Main run `39271873640` passed.
+- PR #14 (`Make speed memory authoritative and implement real loudness leveling`) passed run `39272737660`; merged as `60b7023bef1f656c8b79fa896ae0bbc8e9bd765d`. Main run `39272814389` passed.
 
 ## Architecture decisions
 
 - BiliYouTube should increasingly behave as a small SPA shell rather than redirecting major navigation to Bilibili-native pages.
-- Homepage search and topic/category navigation should remain inside the BiliYouTube shell rather than opening Bilibili's native search UI.
-- Homepage card interaction enhancements should remain isolated from the main Vue shell where possible so preview/menu failures do not break the recommendation feed.
-- Homepage hover previews should use Bilibili-provided streams at modest quality, stay muted, and release media immediately after hover ends.
-- Actions that mutate the user's Bilibili account should reuse the current Bilibili session and CSRF token without adding cookie permissions.
+- Homepage search and category navigation remain inside the BiliYouTube shell.
+- Category switching should be visually stable and fast; short-lived result caching/prefetching is preferred over refetching the same page on every click.
+- Homepage card interaction enhancements stay isolated from the main Vue shell where practical.
+- Actions that mutate the user's Bilibili account reuse the current Bilibili session and CSRF token without adding cookie permissions.
 - Subscriptions and Dynamic are separate concepts.
 - Internal channel Video pages use the creator upload archive rather than infer uploads from Dynamic entries.
 - Bilibili favorite folders map to YouTube-style playlists while retaining Bilibili as the source of truth.
-- Homepage renders BiliYouTube's own Vue interface and should prevent the native Bilibili homepage from painting before the custom shell is mounted.
 - Watch page keeps the native Bilibili player and stateful controls and restyles/reflows them in place.
-- Playback/UI enhancements remain isolated from the main watch-page chrome/reflow script and degrade independently.
-- Playback enhancements must never make an extension-owned `AudioContext` part of the native player's required audible output path; optional audio analysis must fail open.
-- DOM integration must fail open when Bilibili changes selectors.
+- Playback-speed persistence must have one authoritative writer/restore controller to avoid races.
+- Loudness leveling should process audio gain rather than use the native player volume as an actuator.
+- DOM/API integrations should fail gracefully when Bilibili changes behavior.
 - Use real Bilibili account/content data rather than fake UI data.
-- Minimize extension permissions; watch-page ad hiding currently uses DOM/CSS rather than network interception.
+- Minimize extension permissions.
 - Prefer GitHub Actions for build/package/release.
 
 ## Next priorities
 
-1. Validate Firefox `0.2.7` in signed-in Firefox: hover several homepage cards long enough to start previews, move rapidly between cards, scroll during/after preview, and confirm streams stop cleanly without affecting normal playback.
-2. Validate the homepage three-dot menu in light/dark themes, including menu placement near viewport edges, Watch Later, save-to-playlist, copy link, session-only hide actions, click-away close and Escape close.
-3. Validate Firefox `0.2.7` with repeated pause/resume, video switching, reloads and fullscreen transitions; confirm native audio remains reliable with loudness normalization both enabled and disabled.
-4. Validate playback-speed memory across a full browser restart and confirm Bilibili's player initialization no longer resets the persisted speed to `1x`.
-5. Validate internal search and every homepage topic chip in signed-in Firefox, including back/forward, infinite loading, video links and channel links, and confirm none escape to Bilibili's native search UI.
-6. Validate the no-flash homepage boot in Firefox `0.2.7` and confirm the native Bilibili homepage no longer paints before BiliYouTube appears.
-7. Verify collection resume and per-episode playback-position restore across real collection variants after removal of centering code.
-8. Continue testing watch-page controls, wide/web/browser fullscreen, toolbar actions, follow, description, comments and related-video navigation.
-9. Continue refining subscriptions/channel proportions and eliminating remaining native-page escapes.
-10. Add an explicit user-facing compatibility fallback/disable control for future Bilibili DOM changes.
+1. Validate the unreleased post-`0.2.7` main build in signed-in Firefox: collapse/expand the homepage sidebar repeatedly and verify compact-rail layout at common viewport widths.
+2. Switch rapidly between all homepage topic chips, revisit previously opened topics, and verify cached/prefetched pages appear immediately without chip-row movement.
+3. Confirm the WBI topic/search path avoids the observed intermittent HTTP 412 under normal signed-in browsing; verify cached fallback behavior if Bilibili temporarily rejects a request.
+4. Validate playback-speed memory across full Firefox restarts, quality changes, pause/resume, multi-part videos and SPA navigation; confirm native user speed changes persist while unsolicited resets do not.
+5. Compare quiet and loud videos with loudness normalization enabled and disabled; verify the BYT implementation changes signal gain without moving Bilibili's visible volume control.
+6. Test mute/unmute, volume changes, seeking, pause/resume, fullscreen and video switches while the Web Audio loudness graph is active.
+7. Continue testing homepage hover previews and three-dot actions in light/dark themes.
+8. Continue refining subscriptions/channel proportions and eliminating remaining native-page escapes.
+9. Add an explicit user-facing compatibility fallback/disable control for future Bilibili DOM/API changes.
 
 ## Before each future development session
 
