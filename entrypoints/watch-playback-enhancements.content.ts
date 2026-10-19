@@ -51,6 +51,16 @@ const collectionHints = [
   'video-pod', 'video-sections', 'multi-page', 'episode', 'season', 'section-list', 'cur-list', 'list-box',
 ]
 
+const watchAdSelectors = [
+  '#slide_ad',
+  '.ad-report',
+  '.video-card-ad-small',
+  '.video-page-ad',
+  '.commercial-card',
+  '.bili-video-card__info--ad',
+  '[data-ad-report]',
+]
+
 let settings: PlaybackSettings = { ...defaults }
 let rememberedSpeed: number | null = null
 let lastUserInteractionAt = 0
@@ -65,6 +75,8 @@ let lastProgressWrite = 0
 let lastCollectionWrite = 0
 let settingsPanel: HTMLElement | null = null
 let fallbackSettingsButton: HTMLButtonElement | null = null
+let settingsPinned = false
+let settingsCloseTimer: number | null = null
 const audioPipelines = new WeakMap<HTMLVideoElement, AudioPipeline>()
 
 function clamp(value: number, min: number, max: number): number {
@@ -117,30 +129,41 @@ function storageCollectionKey(key: string): string {
   return `${COLLECTION_PREFIX}${key}`
 }
 
-function isVisible(element: HTMLElement): boolean {
-  const rect = element.getBoundingClientRect()
-  const style = getComputedStyle(element)
-  return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'
-}
-
 function nativeSettingsButton(): HTMLElement | null {
   return document.querySelector<HTMLElement>('.bpx-player-ctrl-setting')
     ?? document.querySelector<HTMLElement>('[class~="bpx-player-ctrl-setting"]')
 }
 
-function nativeSettingsHost(): HTMLElement | null {
-  const selectors = [
-    '.bpx-player-ctrl-setting-menu',
-    '.bpx-player-ctrl-setting-box',
-    '.bpx-player-ctrl-setting-menu-wrap',
-    '.bpx-player-ctrl-setting-panel',
-  ]
-  for (const selector of selectors) {
-    const node = document.querySelector<HTMLElement>(selector)
-    if (node && isVisible(node))
-      return node
+function hideAdElement(element: HTMLElement) {
+  element.dataset.bytAdHidden = 'true'
+  element.style.setProperty('display', 'none', 'important')
+}
+
+function hideWatchAds() {
+  document.querySelectorAll<HTMLElement>(watchAdSelectors.join(',')).forEach(hideAdElement)
+
+  const right = document.querySelector<HTMLElement>('.right-container, .recommend-list-v1, .recommend-list-container')
+  if (!right)
+    return
+
+  right.querySelectorAll<HTMLAnchorElement>('a[href*="cm.bilibili.com"], a[href*="ad.bilibili.com"]')
+    .forEach((anchor) => {
+      const card = anchor.closest<HTMLElement>(
+        '.video-card-ad-small, .video-page-card-small, .video-page-card, [class*="ad-card"], [class*="commercial"], li',
+      )
+      if (card)
+        hideAdElement(card)
+    })
+
+  for (const badge of right.querySelectorAll<HTMLElement>('span, i, em, div')) {
+    if (badge.textContent?.trim() !== '广告')
+      continue
+    const card = badge.closest<HTMLElement>(
+      '.video-card-ad-small, .video-page-card-small, .video-page-card, [class*="ad-card"], [class*="commercial"], li',
+    )
+    if (card && right.contains(card))
+      hideAdElement(card)
   }
-  return null
 }
 
 function buildToggleRow(
@@ -228,31 +251,51 @@ function buildSettingsPanel(): HTMLElement {
   return panel
 }
 
-function injectNativeSettings() {
-  const host = nativeSettingsHost()
-  if (!host || host.querySelector('.byt-player-settings-panel'))
+function cancelSettingsClose() {
+  if (settingsCloseTimer === null)
     return
-  document.querySelector('.byt-player-settings-panel-floating')?.remove()
-  fallbackSettingsButton?.remove()
-  fallbackSettingsButton = null
-  settingsPanel = buildSettingsPanel()
-  settingsPanel.classList.add('byt-player-settings-panel-native')
-  host.append(settingsPanel)
+  window.clearTimeout(settingsCloseTimer)
+  settingsCloseTimer = null
 }
 
-function closeFloatingSettings() {
-  settingsPanel?.classList.remove('is-open')
+function openFloatingSettings() {
+  cancelSettingsClose()
+  settingsPanel?.classList.add('is-open')
+}
+
+function closeFloatingSettings(force = false) {
+  cancelSettingsClose()
+  if (force)
+    settingsPinned = false
+  if (!settingsPinned)
+    settingsPanel?.classList.remove('is-open')
+}
+
+function scheduleSettingsClose() {
+  cancelSettingsClose()
+  if (settingsPinned)
+    return
+  settingsCloseTimer = window.setTimeout(() => {
+    settingsCloseTimer = null
+    if (!settingsPinned)
+      settingsPanel?.classList.remove('is-open')
+  }, 180)
 }
 
 function ensureFallbackSettingsButton() {
-  if (nativeSettingsHost())
+  if (fallbackSettingsButton?.isConnected && settingsPanel?.isConnected)
     return
+
   const setting = nativeSettingsButton()
-  if (!setting || fallbackSettingsButton?.isConnected)
+  if (!setting)
     return
   const controls = setting.parentElement
   if (!controls)
     return
+
+  settingsPanel?.remove()
+  fallbackSettingsButton?.remove()
+  settingsPinned = false
 
   const button = document.createElement('button')
   button.type = 'button'
@@ -267,9 +310,18 @@ function ensureFallbackSettingsButton() {
   fallbackSettingsButton = button
   settingsPanel = panel
 
+  button.addEventListener('pointerenter', openFloatingSettings)
+  button.addEventListener('pointerleave', scheduleSettingsClose)
+  panel.addEventListener('pointerenter', cancelSettingsClose)
+  panel.addEventListener('pointerleave', scheduleSettingsClose)
+
   button.addEventListener('click', (event) => {
     event.stopPropagation()
-    panel.classList.toggle('is-open')
+    settingsPinned = !settingsPinned
+    if (settingsPinned)
+      openFloatingSettings()
+    else if (!button.matches(':hover') && !panel.matches(':hover'))
+      closeFloatingSettings()
   })
 }
 
@@ -602,7 +654,7 @@ async function bindVideo(video: HTMLVideoElement) {
 }
 
 async function syncEnhancements() {
-  injectNativeSettings()
+  hideWatchAds()
   ensureFallbackSettingsButton()
 
   const video = findVideo()
@@ -671,7 +723,7 @@ export default defineContentScript({
         return
       if (settingsPanel?.contains(target) || fallbackSettingsButton?.contains(target))
         return
-      closeFloatingSettings()
+      closeFloatingSettings(true)
     }
     const onUserKeyDown = () => {
       lastUserInteractionAt = performance.now()
@@ -688,6 +740,7 @@ export default defineContentScript({
       document.removeEventListener('click', onCollectionLinkClick, true)
       document.removeEventListener('pointerdown', onUserPointerDown, true)
       document.removeEventListener('keydown', onUserKeyDown, true)
+      cancelSettingsClose()
       videoCleanup?.()
       videoCleanup = null
       activeVideo = null
@@ -695,6 +748,7 @@ export default defineContentScript({
       fallbackSettingsButton?.remove()
       settingsPanel = null
       fallbackSettingsButton = null
+      settingsPinned = false
     })
   },
 })
