@@ -1,3 +1,5 @@
+import { signWbiQuery } from '../../lib/wbi'
+
 interface SearchVideoRaw {
   bvid?: string
   title?: string
@@ -123,8 +125,8 @@ function cacheKey(keyword: string, page: number): string {
   return `${keyword.trim().toLocaleLowerCase()}::${page}`
 }
 
-async function fetchSearchEndpoint(keyword: string, page: number, endpoint: string): Promise<SearchData> {
-  const params = new URLSearchParams({
+async function fetchSearchEndpoint(keyword: string, page: number): Promise<SearchData> {
+  const values: Record<string, string> = {
     search_type: 'video',
     keyword,
     page: String(page),
@@ -132,8 +134,9 @@ async function fetchSearchEndpoint(keyword: string, page: number, endpoint: stri
     order: 'totalrank',
     from_source: 'webtop_search',
     web_location: '1430654',
-  })
-  const response = await fetch(`https://api.bilibili.com${endpoint}?${params}`, {
+  }
+  const query = await signWbiQuery(values)
+  const response = await fetch(`https://api.bilibili.com/x/web-interface/wbi/search/type?${query}`, {
     credentials: 'include',
     headers: { Accept: 'application/json, text/plain, */*' },
     referrer: 'https://www.bilibili.com/',
@@ -149,15 +152,12 @@ async function fetchSearchEndpoint(keyword: string, page: number, endpoint: stri
 
 async function requestSearchNetwork(keyword: string, page: number): Promise<SearchData> {
   try {
-    return await fetchSearchEndpoint(keyword, page, '/x/web-interface/wbi/search/type')
+    return await fetchSearchEndpoint(keyword, page)
   }
   catch (error) {
     if (!(error instanceof Error) || !/HTTP 412/.test(error.message))
       throw error
 
-    // Bilibili's search endpoint can reject a request when the browser fingerprint
-    // cookie has not yet been refreshed. Touch the main site once, then retry the
-    // current WBI endpoint. The body is intentionally not consumed.
     try {
       await fetch('https://www.bilibili.com/', {
         credentials: 'include',
@@ -166,10 +166,10 @@ async function requestSearchNetwork(keyword: string, page: number): Promise<Sear
       })
     }
     catch {
-      // The retry below is the authoritative result.
+      // The signed retry below is the authoritative result.
     }
     await new Promise(resolve => setTimeout(resolve, 250))
-    return fetchSearchEndpoint(keyword, page, '/x/web-interface/wbi/search/type')
+    return fetchSearchEndpoint(keyword, page)
   }
 }
 
@@ -189,8 +189,6 @@ async function requestSearch(keyword: string, page: number): Promise<SearchData>
       return data
     })
     .catch((error) => {
-      // If a previously successful entry exists, prefer a stale result over
-      // blanking the whole topic page because Bilibili briefly rate-limited us.
       if (cached)
         return cached.data
       throw error
@@ -433,7 +431,7 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
     const target = rawEvent.target
     if (!(target instanceof Element))
       return
-    const chip = target.closest<HTMLButtonElement>('.chipbar .chip')
+    const chip = target.closest('.chipbar .chip') as HTMLButtonElement | null
     const topic = chip?.textContent?.trim() ?? ''
     if (!topic || topic === '全部' || !TOPICS.includes(topic))
       return
