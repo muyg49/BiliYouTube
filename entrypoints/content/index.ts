@@ -1,8 +1,10 @@
 import { createApp } from 'vue'
 
 import App from '../../app/App.vue'
+import { installInternalNavigation } from './navigation'
 import './style.css'
 import './library.css'
+import './navigation.css'
 
 function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
@@ -25,10 +27,12 @@ export default defineContentScript({
       onMount(container) {
         const app = createApp(App)
         app.mount(container)
-        return app
+        const navigation = installInternalNavigation(container)
+        return { app, navigation }
       },
-      onRemove(app) {
-        app?.unmount()
+      onRemove(state) {
+        state?.navigation.destroy()
+        state?.app.unmount()
         document.body.style.overflow = previousOverflow
       },
     })
