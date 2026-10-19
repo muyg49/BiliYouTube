@@ -1,0 +1,198 @@
+/* Additional YouTube-style watch-page refinement and playback settings. */
+html.byt-watch-page:not(.byt-watch-wide):not(.byt-watch-web-full):not(.byt-watch-browser-full) .video-container-v1 {
+  gap: 24px !important;
+}
+
+html.byt-watch-page .byt-native-info {
+  padding-right: 4px !important;
+}
+
+html.byt-watch-page .byt-native-up {
+  min-height: 44px;
+}
+
+html.byt-watch-page .byt-native-toolbar {
+  min-height: 44px;
+}
+
+html.byt-watch-page .byt-native-desc {
+  font-size: 14px !important;
+  line-height: 20px !important;
+}
+
+html.byt-watch-page .byt-native-related .video-page-card-small,
+html.byt-watch-page .byt-native-related .video-page-card {
+  display: grid !important;
+  grid-template-columns: minmax(142px, 168px) minmax(0, 1fr) !important;
+  gap: 8px !important;
+  align-items: start !important;
+}
+
+html.byt-watch-page .byt-native-related .pic-box,
+html.byt-watch-page .byt-native-related .pic,
+html.byt-watch-page .byt-native-related .b-img {
+  width: 100% !important;
+  max-width: 168px !important;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+}
+
+html.byt-watch-page .byt-native-related .pic-box img,
+html.byt-watch-page .byt-native-related .pic img,
+html.byt-watch-page .byt-native-related .b-img img {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+}
+
+html.byt-watch-page .video-pod,
+html.byt-watch-page .base-video-sections-v1,
+html.byt-watch-page .video-sections-v1 {
+  overflow: hidden;
+  border: 1px solid var(--byt-watch-border) !important;
+  border-radius: 12px !important;
+  background: var(--byt-watch-bg) !important;
+}
+
+html.byt-watch-page .video-pod__body,
+html.byt-watch-page .video-pod__list,
+html.byt-watch-page .video-sections-content-list,
+html.byt-watch-page .base-video-sections-v1 [class*="list"] {
+  scroll-behavior: smooth;
+}
+
+.byt-player-settings-panel {
+  box-sizing: border-box;
+  min-width: 300px;
+  padding: 10px 0;
+  color: #f1f1f1;
+  background: rgb(28 28 28 / 96%);
+  font-family: Roboto, Arial, "Noto Sans SC", sans-serif;
+  font-size: 13px;
+}
+
+.byt-player-settings-panel-native {
+  width: 100%;
+  margin-top: 8px;
+  border-top: 1px solid rgb(255 255 255 / 14%);
+}
+
+.byt-player-settings-heading {
+  padding: 4px 14px 8px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.byt-player-setting-row {
+  position: relative;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 7px 14px;
+  cursor: pointer;
+}
+
+.byt-player-setting-row:hover {
+  background: rgb(255 255 255 / 9%);
+}
+
+.byt-player-setting-copy {
+  min-width: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.byt-player-setting-copy strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.byt-player-setting-copy small {
+  max-width: 230px;
+  color: #aaa;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.byt-player-setting-row input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.byt-player-setting-switch {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  flex: 0 0 34px;
+  border-radius: 999px;
+  background: #606060;
+  transition: background 120ms ease;
+}
+
+.byt-player-setting-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 35%);
+  transition: transform 120ms ease;
+}
+
+.byt-player-setting-row input:checked + .byt-player-setting-switch {
+  background: #00aeec;
+}
+
+.byt-player-setting-row input:checked + .byt-player-setting-switch::after {
+  transform: translateX(16px);
+}
+
+.byt-player-settings-button {
+  min-width: 36px;
+  height: 28px;
+  margin: 0 4px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 4px;
+  color: #fff;
+  background: transparent;
+  cursor: pointer;
+  font: 600 10px/28px Arial, sans-serif;
+}
+
+.byt-player-settings-button:hover {
+  background: rgb(255 255 255 / 15%);
+}
+
+.byt-player-settings-panel-floating {
+  position: absolute;
+  z-index: 10020;
+  right: 8px;
+  bottom: 48px;
+  display: none;
+  width: min(340px, calc(100vw - 24px));
+  border-radius: 10px;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 38%);
+}
+
+.byt-player-settings-panel-floating.is-open {
+  display: block;
+}
+
+@media (max-width: 1200px) {
+  html.byt-watch-page .byt-native-related .video-page-card-small,
+  html.byt-watch-page .byt-native-related .video-page-card {
+    grid-template-columns: minmax(128px, 152px) minmax(0, 1fr) !important;
+  }
+}
