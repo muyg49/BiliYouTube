@@ -1,6 +1,6 @@
 import { callApi } from '../lib/api'
 import type { BiliFollowing, BiliUser } from '../types/bilibili'
-import './watch.css'
+import '../styles/watch.css'
 
 const SVG_NS = 'http://www.w3.org/2000/svg'
 const markerClasses = [
