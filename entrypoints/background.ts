@@ -3,6 +3,9 @@ import { browser } from 'wxt/browser'
 import type {
   ApiRequest,
   ApiResponse,
+  BiliDynamicFilter,
+  BiliDynamicItem,
+  BiliDynamicPage,
   BiliFavoriteFolder,
   BiliFavoriteItem,
   BiliFavoritePage,
@@ -51,6 +54,52 @@ interface RecommendItem {
   stat?: { view?: number }
   rcmd_reason?: { content?: string }
   goto?: string
+}
+
+interface DynamicArchiveRaw {
+  bvid?: string
+  title?: string
+  cover?: string
+  jump_url?: string
+  duration_text?: string
+  stat?: { play?: string | number }
+}
+
+interface DynamicRawItem {
+  id_str?: string
+  type?: string
+  basic?: { jump_url?: string }
+  modules?: {
+    module_author?: {
+      mid?: number
+      name?: string
+      face?: string
+      pub_ts?: number
+    }
+    module_dynamic?: {
+      desc?: { text?: string } | null
+      major?: {
+        archive?: DynamicArchiveRaw
+        draw?: { items?: Array<{ src?: string }> }
+        opus?: {
+          summary?: { text?: string }
+          pics?: Array<{ url?: string }>
+          jump_url?: string
+        }
+        article?: {
+          title?: string
+          covers?: string[]
+          jump_url?: string
+        }
+      } | null
+    }
+  }
+}
+
+interface DynamicData {
+  has_more?: boolean
+  items?: DynamicRawItem[]
+  offset?: string
 }
 
 interface HistoryRawItem {
@@ -173,6 +222,16 @@ function normalizeImage(url = ''): string {
   return url.startsWith('//') ? `https:${url}` : url.replace(/^http:\/\//, 'https://')
 }
 
+function normalizeBilibiliUrl(url = ''): string {
+  if (!url)
+    return ''
+  if (url.startsWith('//'))
+    return `https:${url}`
+  if (url.startsWith('/'))
+    return `https://www.bilibili.com${url}`
+  return url.replace(/^http:\/\//, 'https://')
+}
+
 function normalizeVideo(item: PopularItem | RecommendItem): BiliVideo | null {
   if (!item.bvid || !item.title || !item.pic)
     return null
@@ -191,6 +250,61 @@ function normalizeVideo(item: PopularItem | RecommendItem): BiliVideo | null {
     view: item.stat?.view ?? 0,
     published: item.pubdate ?? 0,
     reason: 'rcmd_reason' in item ? item.rcmd_reason?.content : undefined,
+  }
+}
+
+function normalizeDynamicItem(item: DynamicRawItem): BiliDynamicItem | null {
+  const author = item.modules?.module_author
+  const dynamic = item.modules?.module_dynamic
+  const major = dynamic?.major
+  const archive = major?.archive
+  const id = item.id_str?.trim()
+  const mid = author?.mid ?? 0
+  const name = author?.name?.trim()
+  if (!id || !mid || !name)
+    return null
+
+  const video = archive?.bvid && archive.title
+    ? {
+        bvid: archive.bvid,
+        title: archive.title,
+        cover: normalizeImage(archive.cover ?? ''),
+        durationText: archive.duration_text ?? '',
+        viewText: archive.stat?.play == null ? '' : String(archive.stat.play),
+        url: normalizeBilibiliUrl(archive.jump_url || `https://www.bilibili.com/video/${archive.bvid}`),
+      }
+    : undefined
+
+  const images = [
+    ...(major?.draw?.items ?? []).map(entry => normalizeImage(entry.src ?? '')),
+    ...(major?.opus?.pics ?? []).map(entry => normalizeImage(entry.url ?? '')),
+    ...(major?.article?.covers ?? []).map(normalizeImage),
+  ].filter(Boolean)
+
+  const text = dynamic?.desc?.text?.trim()
+    || major?.opus?.summary?.text?.trim()
+    || major?.article?.title?.trim()
+    || ''
+  const fallbackUrl = normalizeBilibiliUrl(
+    item.basic?.jump_url
+      || major?.opus?.jump_url
+      || major?.article?.jump_url
+      || `https://t.bilibili.com/${id}`,
+  )
+
+  return {
+    id,
+    type: item.type ?? '',
+    author: {
+      mid,
+      name,
+      face: normalizeImage(author?.face ?? ''),
+    },
+    published: author?.pub_ts ?? 0,
+    text,
+    images: [...new Set(images)],
+    url: video?.url || fallbackUrl,
+    video,
   }
 }
 
@@ -386,6 +500,37 @@ async function getFollowing(mid: number, page = 1): Promise<BiliFollowing[]> {
   }))
 }
 
+async function getDynamicFeed(
+  mid?: number,
+  filter: BiliDynamicFilter = 'all',
+  offset = '',
+): Promise<BiliDynamicPage> {
+  const params = new URLSearchParams({
+    timezone_offset: '-480',
+    platform: 'web',
+    features: 'itemOpusStyle,listOnlyfans,opusBigCover',
+    type: filter,
+  })
+  if (offset)
+    params.set('offset', offset)
+  if (mid)
+    params.set('host_mid', String(mid))
+
+  const endpoint = mid
+    ? `${API}/x/polymer/web-dynamic/v1/feed/space`
+    : `${API}/x/polymer/web-dynamic/v1/feed/all`
+  const data = await getJson<DynamicData>(`${endpoint}?${params}`)
+  const items = (data.items ?? [])
+    .map(normalizeDynamicItem)
+    .filter((item): item is BiliDynamicItem => Boolean(item))
+
+  return {
+    items,
+    offset: data.offset ?? '',
+    hasMore: Boolean(data.has_more && data.offset),
+  }
+}
+
 async function getHistory(filter: BiliHistoryFilter = 'all', cursor?: BiliHistoryCursor | null): Promise<BiliHistoryPage> {
   const params = new URLSearchParams({
     ps: '30',
@@ -439,15 +584,51 @@ async function deleteHistory(oid: number, business: string, csrf: string): Promi
   })
 }
 
+async function enrichFavoriteFolder(folder: BiliFavoriteFolder): Promise<BiliFavoriteFolder> {
+  let enriched = folder
+  try {
+    const params = new URLSearchParams({ media_id: String(folder.id) })
+    const info = normalizeFavoriteFolder(await getJson<FavoriteFolderRaw>(`${API}/x/v3/fav/folder/info?${params}`))
+    if (info)
+      enriched = { ...folder, ...info }
+  }
+  catch (error) {
+    console.debug('[BiliYouTube] favorite folder metadata unavailable', folder.id, error)
+  }
+
+  if (enriched.cover || !enriched.mediaCount)
+    return enriched
+
+  try {
+    const params = new URLSearchParams({
+      media_id: String(folder.id),
+      pn: '1',
+      ps: '1',
+      order: 'mtime',
+      platform: 'web',
+    })
+    const data = await getJson<FavoriteResourceData>(`${API}/x/v3/fav/resource/list?${params}`)
+    const cover = normalizeImage(data.medias?.[0]?.cover ?? '')
+    if (cover)
+      enriched = { ...enriched, cover }
+  }
+  catch (error) {
+    console.debug('[BiliYouTube] favorite folder preview unavailable', folder.id, error)
+  }
+
+  return enriched
+}
+
 async function getFavoriteFolders(mid: number): Promise<BiliFavoriteFolder[]> {
   const params = new URLSearchParams({
     up_mid: String(mid),
     type: '2',
   })
   const data = await getJson<{ list?: FavoriteFolderRaw[] }>(`${API}/x/v3/fav/folder/created/list-all?${params}`)
-  return (data.list ?? [])
+  const folders = (data.list ?? [])
     .map(normalizeFavoriteFolder)
     .filter((folder): folder is BiliFavoriteFolder => Boolean(folder))
+  return Promise.all(folders.map(enrichFavoriteFolder))
 }
 
 async function getFavoritePage(
@@ -525,6 +706,8 @@ export default defineBackground(() => {
           return { ok: true, data: await getFeed(message.page ?? 1) }
         case 'following':
           return { ok: true, data: await getFollowing(message.mid, message.page ?? 1) }
+        case 'dynamicFeed':
+          return { ok: true, data: await getDynamicFeed(message.mid, message.filter, message.offset) }
         case 'history':
           return { ok: true, data: await getHistory(message.filter, message.cursor) }
         case 'historyState':
