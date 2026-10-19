@@ -1,0 +1,54 @@
+@media (min-width: 1101px) {
+  .app-shell.byt-sidebar-collapsed .sidebar {
+    width: 72px;
+    padding-inline: 8px;
+  }
+
+  .app-shell.byt-sidebar-collapsed .main-area {
+    left: 72px;
+  }
+
+  .app-shell.byt-sidebar-collapsed .sidebar-item {
+    min-height: 64px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    padding: 6px 0;
+    border-radius: 10px;
+    font-size: 10px;
+  }
+
+  .app-shell.byt-sidebar-collapsed .sidebar-item span {
+    display: block;
+    width: 64px;
+    overflow: hidden;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .app-shell.byt-sidebar-collapsed .sidebar-section.subscriptions,
+  .app-shell.byt-sidebar-collapsed .section-heading-link,
+  .app-shell.byt-sidebar-collapsed .divider,
+  .app-shell.byt-sidebar-collapsed .show-more {
+    display: none;
+  }
+
+  .app-shell.byt-sidebar-collapsed .sidebar-group {
+    gap: 4px;
+  }
+}
+
+@media (min-width: 761px) and (max-width: 1100px) {
+  .app-shell.byt-sidebar-collapsed .sidebar {
+    display: none;
+  }
+
+  .app-shell.byt-sidebar-collapsed .main-area {
+    left: 0;
+  }
+}
+
+.menu-button[aria-expanded="false"] {
+  background: var(--surface-2);
+}
