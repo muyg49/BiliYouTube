@@ -28,6 +28,34 @@ export interface BiliFollowing {
   sign?: string
 }
 
+export interface BiliDynamicVideo {
+  bvid: string
+  title: string
+  cover: string
+  durationText: string
+  viewText: string
+  url: string
+}
+
+export interface BiliDynamicItem {
+  id: string
+  type: string
+  author: BiliAuthor
+  published: number
+  text: string
+  images: string[]
+  url: string
+  video?: BiliDynamicVideo
+}
+
+export interface BiliDynamicPage {
+  items: BiliDynamicItem[]
+  offset: string
+  hasMore: boolean
+}
+
+export type BiliDynamicFilter = 'all' | 'video'
+
 export type BiliHistoryFilter = 'all' | 'archive' | 'live' | 'article'
 
 export interface BiliHistoryCursor {
@@ -119,6 +147,7 @@ export type ApiRequest =
   | { type: 'user' }
   | { type: 'feed'; page?: number }
   | { type: 'following'; mid: number; page?: number }
+  | { type: 'dynamicFeed'; mid?: number; filter?: BiliDynamicFilter; offset?: string }
   | { type: 'history'; filter?: BiliHistoryFilter; cursor?: BiliHistoryCursor | null }
   | { type: 'historyState' }
   | { type: 'historySetPaused'; paused: boolean; csrf: string }
