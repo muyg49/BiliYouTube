@@ -18,9 +18,10 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 
 ## Current version
 
-- Package version: `0.1.0`
+- Source package version: `0.1.0`; release workflows override the build version at publish time
+- Latest Firefox submission: `0.2.0`, submitted to AMO on 2026-10-19 for real-world testing
 - Current milestone: YouTube-style navigation shell, internal library views, and native-first watch-page first pass
-- Next planned milestone: `0.2.0` watch-page validation/refinement
+- Next planned milestone: `0.2.x` watch-page validation/refinement from real Firefox testing
 
 ## Implemented
 
@@ -87,7 +88,7 @@ The watch-page script tracks Bilibili player `data-screen` changes plus browser 
 
 The implementation is intentionally fail-open: if a Bilibili DOM selector is no longer recognized, that native region is left untouched instead of being replaced or removed.
 
-This first pass has passed TypeScript compilation, Firefox packaging, and artifact/manifest inspection. The built Firefox manifest contains a dedicated `watch-page` content script for `https://www.bilibili.com/video/*` with its associated CSS. It still requires real signed-in Firefox testing against current Bilibili pages before the watch-page behavior should be considered validated for release.
+This first pass has passed TypeScript compilation, Firefox packaging, artifact/manifest inspection, and AMO upload validation. The built Firefox manifest contains a dedicated `watch-page` content script for `https://www.bilibili.com/video/*` with its associated CSS. Version `0.2.0` has now been submitted to AMO as a test update; real signed-in Firefox testing is the next validation step.
 
 ## Bilibili API layer
 
@@ -128,6 +129,16 @@ The initial Firefox AMO submission has been approved and the extension has been 
 
 The initial listing was created with `web-ext sign`. After creation, the normal WXT AMO update path was rechecked and `wxt submit --dry-run` succeeded, so AMO recognizes the extension ID for subsequent releases.
 
+### Firefox 0.2.0 test submission
+
+Version `0.2.0` was submitted to Firefox Add-ons from the current native-first watch-page code on 2026-10-19.
+
+- GitHub Actions publish run: `39195439137`
+- AMO upload validation: 0 errors, 1 warning, 0 notices
+- AMO uploaded file ID shown by validation: `5137757`
+- WXT `submit` completed successfully and AMO accepted the new version submission
+- Public/update availability still depends on Mozilla's signing/review processing
+
 ### Firefox manifest details
 
 - Gecko ID: `biliyoutube@muyg49.github.io`
@@ -152,8 +163,9 @@ Expected normal release flow:
 
 ## CI state
 
-- `main` CI for the internal Playlists / Watch Later merge commit `d07a148a16959b0442352eed02f3dc36bc43ec23` completed successfully.
-- The native-first watch-page implementation has passed pull-request TypeScript compilation, Firefox packaging, artifact upload, and generated-manifest inspection.
+- `main` CI for merge commit `6f6c79d851df3a21f0c3b62f13009ca1a732db5b` completed successfully.
+- The native-first watch-page implementation passed pull-request TypeScript compilation, Firefox packaging, artifact upload, and generated-manifest inspection before merging.
+- Firefox `0.2.0` publish run `39195439137` completed successfully, including type check, Firefox ZIP/source ZIP generation, AMO validation and submission.
 - Feature work should continue to be validated by pull-request CI before merging.
 
 ## Architecture decisions
