@@ -56,6 +56,25 @@ export interface BiliDynamicPage {
 
 export type BiliDynamicFilter = 'all' | 'video'
 
+export interface BiliChannelVideo {
+  aid: number
+  bvid: string
+  title: string
+  cover: string
+  description: string
+  durationText: string
+  view: number
+  published: number
+  url: string
+}
+
+export interface BiliChannelVideoPage {
+  items: BiliChannelVideo[]
+  page: number
+  total: number
+  hasMore: boolean
+}
+
 export type BiliHistoryFilter = 'all' | 'archive' | 'live' | 'article'
 
 export interface BiliHistoryCursor {
@@ -148,6 +167,7 @@ export type ApiRequest =
   | { type: 'feed'; page?: number }
   | { type: 'following'; mid: number; page?: number }
   | { type: 'dynamicFeed'; mid?: number; filter?: BiliDynamicFilter; offset?: string }
+  | { type: 'channelVideos'; mid: number; page?: number }
   | { type: 'history'; filter?: BiliHistoryFilter; cursor?: BiliHistoryCursor | null }
   | { type: 'historyState' }
   | { type: 'historySetPaused'; paused: boolean; csrf: string }
