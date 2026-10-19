@@ -39,7 +39,7 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 - Centered search field
 - 240 px desktop sidebar with narrower responsive mode
 - User avatar integration
-- Navigation entries for history, favorites, watch later, dynamics, etc.
+- Navigation entries for history, playlists/favorites, watch later, dynamics, etc.
 - Real following/UP list in the sidebar
 - Bilibili recommendation feed
 - Popular-feed fallback when recommendation requests fail
@@ -51,16 +51,19 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 
 ### YouTube-style navigation/library work
 
-Work started on replacing Bilibili page jumps with BiliYouTube-owned internal views.
+BiliYouTube now keeps major personal-library navigation inside the shared YouTube-style shell instead of sending the user to Bilibili-native pages.
 
 - Subscription `显示更多` expands/collapses inside the sidebar instead of navigating to the native following page.
 - History opens as an internal BiliYouTube view while keeping the YouTube-style top bar and sidebar.
 - History layout mirrors YouTube desktop structure with grouped entries, filters, search, and a right-side control column.
-- History uses Bilibili account data through the existing browser session.
 - History supports infinite cursor loading, clear-all, pause/resume history, and item removal management.
-- Internal Home/History navigation uses browser history/hash state so back/forward navigation works without leaving the BiliYouTube shell.
-
-Favorites and Watch Later still currently link to Bilibili-native pages and are candidates for the next internal-view pass.
+- Bilibili favorite folders are exposed as an internal YouTube-style `播放列表` view.
+- Playlist overview shows real Bilibili favorite folders and item counts.
+- Playlist detail uses a YouTube-style summary panel plus video list, with search, sort, paging, play-all and remove-from-folder actions.
+- Watch Later opens as an internal playlist-style view with real Bilibili data.
+- Watch Later supports search, per-item removal, removing viewed items, clearing the list, playback progress, and play-all.
+- Internal Home/History/Playlists/Watch Later navigation uses browser history/hash state so back/forward navigation works without leaving the BiliYouTube shell.
+- No additional browser permissions were added for these library views.
 
 ### Bilibili API layer
 
@@ -74,6 +77,12 @@ Current background API layer includes:
 - `x/v2/history/shadow` and `x/v2/history/shadow/set` for history pause state
 - `x/v2/history/clear` for clearing history
 - `x/v2/history/delete` for removing history entries
+- `x/v3/fav/folder/created/list-all` for favorite folders / playlists
+- `x/v3/fav/resource/list` for playlist contents, search, sorting and pagination
+- `x/v3/fav/resource/batch-del` for removing an item from a playlist
+- `x/v2/history/toview` for Watch Later
+- `x/v2/history/toview/del` for Watch Later item removal and removing viewed entries
+- `x/v2/history/toview/clear` for clearing Watch Later
 
 Requests reuse the existing Bilibili browser session. No broad `cookies` permission is currently requested.
 
@@ -119,14 +128,15 @@ Expected normal release flow:
 
 ## CI state
 
-Before this development pass, the latest checked `main` CI run for commit `cdd4602ff608b98bc12db2b3d069b1306555abe4` completed successfully.
-
-Feature work should be validated by pull-request CI before merging.
+- `main` CI for commit `0bcef4923ddf0144df1d34091841e3df514268f3` completed successfully.
+- Pull-request CI for the internal Playlists / Watch Later implementation on branch `feature/internal-favorites-watch-later` completed successfully before the documentation update.
+- Feature work should continue to be validated by pull-request CI before merging.
 
 ## Architecture decisions
 
 - BiliYouTube should increasingly behave as a small SPA shell rather than sending sidebar navigation directly to Bilibili-native pages.
 - Internal views should preserve the shared top bar/sidebar and load Bilibili data through APIs where practical.
+- Bilibili favorite folders map naturally to YouTube-style playlists; the UI may use YouTube terminology while retaining Bilibili's underlying data model.
 - Homepage: render our own Vue interface rather than continuously fighting Bilibili's homepage CSS.
 - Watch page: keep and reuse Bilibili's native player rather than implementing video playback, qualities, login, and danmaku ourselves.
 - Surrounding watch-page chrome will be replaced/restyled into a YouTube-like layout.
@@ -147,12 +157,12 @@ Useful ideas previously observed from BewlyCat include native Bilibili player DO
 
 ## Next development priorities
 
-1. Finish and validate the internal History view against the real signed-in Bilibili session.
-2. Convert Favorites and Watch Later into BiliYouTube-owned YouTube-style internal views.
-3. Expand the sidebar toward YouTube desktop parity, including additional `You` and `Explore` sections where useful.
-4. Implement the YouTube-style Bilibili watch page while preserving the native player.
-5. Build the right-side related-video column.
-6. Add video title, uploader, subscribe/follow state, action row, description area, and comments.
+1. Validate History, Playlists and Watch Later against the real signed-in Bilibili account after installing a test build.
+2. Expand the sidebar toward YouTube desktop parity, including additional `You` and `Explore` sections where they map cleanly to Bilibili functionality.
+3. Implement the YouTube-style Bilibili watch page while preserving the native player.
+4. Build the right-side related-video column.
+5. Add video title, uploader, subscribe/follow state, action row, description area, and comments.
+6. Refine internal-library spacing and interactions based on real Firefox testing.
 7. Add a user-facing enable/disable or compatibility fallback if DOM replacement causes breakage after Bilibili site updates.
 
 ## Target watch-page layout
