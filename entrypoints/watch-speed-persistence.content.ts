@@ -17,7 +17,7 @@ let rememberedSpeed: number | null = null
 let activeVideo: HTMLVideoElement | null = null
 let videoCleanup: (() => void) | null = null
 let userSpeedIntentUntil = 0
-let stabilizationUntil = 0
+let restoringSpeed = false
 let mutationScheduled = false
 
 function validSpeed(value: unknown): number | null {
@@ -37,11 +37,22 @@ function findVideo(): HTMLVideoElement | null {
   return player?.querySelector<HTMLVideoElement>('video') ?? document.querySelector<HTMLVideoElement>('video')
 }
 
-function restoreSpeed(video: HTMLVideoElement | null) {
+function applyRememberedSpeed(video: HTMLVideoElement | null) {
   if (!video || !rememberSpeed || rememberedSpeed === null)
     return
-  if (Math.abs(video.playbackRate - rememberedSpeed) > 0.01)
+  if (Math.abs(video.playbackRate - rememberedSpeed) <= 0.01)
+    return
+
+  restoringSpeed = true
+  try {
+    video.defaultPlaybackRate = rememberedSpeed
     video.playbackRate = rememberedSpeed
+  }
+  finally {
+    queueMicrotask(() => {
+      restoringSpeed = false
+    })
+  }
 }
 
 async function persistCurrentSpeed(video: HTMLVideoElement) {
@@ -55,7 +66,7 @@ async function persistCurrentSpeed(video: HTMLVideoElement) {
 }
 
 function markSpeedIntent() {
-  userSpeedIntentUntil = performance.now() + 5000
+  userSpeedIntentUntil = performance.now() + 1800
 }
 
 function speedControlFromEvent(event: Event): boolean {
@@ -63,11 +74,32 @@ function speedControlFromEvent(event: Event): boolean {
   if (!(target instanceof Element))
     return false
 
-  if (target.closest('.bpx-player-ctrl-playbackrate, .bpx-player-ctrl-playbackrate-menu, [class*="playbackrate"]'))
+  if (target.closest([
+    '.bpx-player-ctrl-playbackrate',
+    '.bpx-player-ctrl-playbackrate-menu',
+    '[class*="playbackrate"]',
+    '[class*="playback-rate"]',
+    '[class*="playbackRate"]',
+  ].join(',')))
     return true
 
   const text = target.textContent?.trim() ?? ''
   return /^(?:0\.25|0\.5|0\.75|1(?:\.0)?|1\.25|1\.5|1\.75|2(?:\.0)?|2\.5|3|4)\s*(?:x|×|倍)?$/i.test(text)
+}
+
+function scheduleCapture(video: HTMLVideoElement) {
+  window.setTimeout(() => void persistCurrentSpeed(video), 0)
+  window.setTimeout(() => void persistCurrentSpeed(video), 100)
+  window.setTimeout(() => void persistCurrentSpeed(video), 300)
+}
+
+function scheduleRestore(video: HTMLVideoElement | null) {
+  if (!video)
+    return
+  applyRememberedSpeed(video)
+  window.setTimeout(() => applyRememberedSpeed(video), 0)
+  window.setTimeout(() => applyRememberedSpeed(video), 120)
+  window.setTimeout(() => applyRememberedSpeed(video), 500)
 }
 
 function bindVideo(video: HTMLVideoElement) {
@@ -76,48 +108,46 @@ function bindVideo(video: HTMLVideoElement) {
 
   videoCleanup?.()
   activeVideo = video
-  stabilizationUntil = performance.now() + 8000
 
-  const restore = () => restoreSpeed(video)
+  const restore = () => scheduleRestore(video)
   const onRateChange = () => {
-    if (!rememberSpeed)
+    if (!rememberSpeed || restoringSpeed)
       return
 
     if (performance.now() <= userSpeedIntentUntil) {
-      void persistCurrentSpeed(video)
-      stabilizationUntil = performance.now() + 1200
+      scheduleCapture(video)
       return
     }
 
-    if (performance.now() <= stabilizationUntil && rememberedSpeed !== null
-      && Math.abs(video.playbackRate - rememberedSpeed) > 0.01) {
-      window.setTimeout(() => restoreSpeed(video), 0)
-    }
+    if (rememberedSpeed !== null && Math.abs(video.playbackRate - rememberedSpeed) > 0.01)
+      scheduleRestore(video)
   }
 
   video.addEventListener('loadedmetadata', restore)
+  video.addEventListener('durationchange', restore)
   video.addEventListener('canplay', restore)
   video.addEventListener('playing', restore)
   video.addEventListener('ratechange', onRateChange)
 
   videoCleanup = () => {
     video.removeEventListener('loadedmetadata', restore)
+    video.removeEventListener('durationchange', restore)
     video.removeEventListener('canplay', restore)
     video.removeEventListener('playing', restore)
     video.removeEventListener('ratechange', onRateChange)
   }
 
-  restoreSpeed(video)
-  window.setTimeout(() => restoreSpeed(video), 150)
-  window.setTimeout(() => restoreSpeed(video), 600)
-  window.setTimeout(() => restoreSpeed(video), 1800)
-  window.setTimeout(() => restoreSpeed(video), 4200)
+  scheduleRestore(video)
+  window.setTimeout(() => applyRememberedSpeed(video), 1200)
+  window.setTimeout(() => applyRememberedSpeed(video), 3000)
 }
 
 function syncVideo() {
   const video = findVideo()
   if (video)
     bindVideo(video)
+  if (video === activeVideo)
+    applyRememberedSpeed(video)
 }
 
 export default defineContentScript({
@@ -150,25 +180,22 @@ export default defineContentScript({
       if (!speedControlFromEvent(event))
         return
       markSpeedIntent()
-      window.setTimeout(() => {
-        if (activeVideo)
-          void persistCurrentSpeed(activeVideo)
-      }, 120)
     }
 
     const onClick = (event: MouseEvent) => {
       if (!speedControlFromEvent(event))
         return
       markSpeedIntent()
-      window.setTimeout(() => {
-        if (activeVideo)
-          void persistCurrentSpeed(activeVideo)
-      }, 250)
+      if (activeVideo)
+        scheduleCapture(activeVideo)
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === '>' || event.key === '<' || event.key === '.' || event.key === ',')
+      if (event.key === '>' || event.key === '<' || event.key === '.' || event.key === ',') {
         markSpeedIntent()
+        if (activeVideo)
+          scheduleCapture(activeVideo)
+      }
     }
 
     const onStorageChanged = (changes: Record<string, StorageChangeLike>, areaName: string) => {
@@ -178,12 +205,12 @@ export default defineContentScript({
         const value = changes[SETTINGS_KEY].newValue as PlaybackSettings | undefined
         rememberSpeed = Boolean(value?.rememberSpeed)
         if (rememberSpeed)
-          restoreSpeed(activeVideo)
+          scheduleRestore(activeVideo)
       }
       if (changes[LAST_SPEED_KEY]) {
         rememberedSpeed = validSpeed(changes[LAST_SPEED_KEY].newValue)
         if (rememberSpeed)
-          restoreSpeed(activeVideo)
+          scheduleRestore(activeVideo)
       }
     }
 
@@ -192,7 +219,7 @@ export default defineContentScript({
     document.addEventListener('keydown', onKeyDown, true)
     browser.storage.onChanged.addListener(onStorageChanged)
 
-    const timer = window.setInterval(syncVideo, 1000)
+    const timer = window.setInterval(syncVideo, 500)
 
     ctx.onInvalidated(() => {
       observer.disconnect()

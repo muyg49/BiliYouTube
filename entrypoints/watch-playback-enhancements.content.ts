@@ -25,24 +25,17 @@ interface CollectionContext {
   key: string
 }
 
-interface CapturableVideoElement extends HTMLVideoElement {
-  captureStream?: () => MediaStream
-  mozCaptureStream?: () => MediaStream
-}
-
 interface AudioPipeline {
   context: AudioContext
-  stream: MediaStream
-  source: MediaStreamAudioSourceNode
+  source: MediaElementAudioSourceNode
   analyser: AnalyserNode
-  silentSink: GainNode
+  gain: GainNode
+  compressor: DynamicsCompressorNode
   samples: Float32Array<ArrayBuffer>
   timer: number | null
-  smoothedRms: number
-  normalizationFactor: number
-  userVolume: number
-  lastAppliedVolume: number
-  onVolumeChange: () => void
+  smoothedLevelDb: number | null
+  gainDb: number
+  normalized: boolean
 }
 
 const SETTINGS_KEY = 'byt:watch:settings'
@@ -71,10 +64,8 @@ const watchAdSelectors = [
 ]
 
 let settings: PlaybackSettings = { ...defaults }
-let rememberedSpeed: number | null = null
-let lastUserInteractionAt = 0
 let activeVideo: HTMLVideoElement | null = null
-let videoCleanup: (() => void) | null = null
+let videoCleanup: ((keepAudio?: boolean) => void) | null = null
 let mutationScheduled = false
 let locationKey = ''
 let activeCollection: CollectionContext | null = null
@@ -101,14 +92,12 @@ function hashText(value: string): string {
 }
 
 async function loadSettings() {
-  const stored = await browser.storage.local.get([SETTINGS_KEY, LAST_SPEED_KEY])
+  const stored = await browser.storage.local.get(SETTINGS_KEY)
   const value = stored[SETTINGS_KEY] as Partial<PlaybackSettings> | undefined
   settings = {
     rememberSpeed: value?.rememberSpeed ?? defaults.rememberSpeed,
     loudnessNormalization: value?.loudnessNormalization ?? defaults.loudnessNormalization,
   }
-  const speed = Number(stored[LAST_SPEED_KEY])
-  rememberedSpeed = Number.isFinite(speed) && speed >= 0.25 && speed <= 4 ? speed : null
 }
 
 async function saveSettings() {
@@ -214,14 +203,10 @@ function refreshSettingsPanel() {
 
 async function updateRememberSpeed(enabled: boolean) {
   settings.rememberSpeed = enabled
-  if (enabled && activeVideo) {
-    rememberedSpeed = clamp(activeVideo.playbackRate, 0.25, 4)
-    await browser.storage.local.set({ [LAST_SPEED_KEY]: rememberedSpeed })
-  }
+  if (enabled && activeVideo)
+    await browser.storage.local.set({ [LAST_SPEED_KEY]: clamp(activeVideo.playbackRate, 0.25, 4) })
   await saveSettings()
   refreshSettingsPanel()
-  if (enabled)
-    void restorePlaybackSpeed(activeVideo)
 }
 
 async function updateLoudness(enabled: boolean) {
@@ -241,7 +226,7 @@ function buildSettingsPanel(): HTMLElement {
 
   const speedRow = buildToggleRow(
     '记忆播放速度',
-    '开启后，新视频沿用你上一次选择的倍速。',
+    '开启后持续锁定你上一次选择的倍速，播放器重建后也会恢复。',
     settings.rememberSpeed,
     value => void updateRememberSpeed(value),
   )
@@ -249,7 +234,7 @@ function buildSettingsPanel(): HTMLElement {
 
   const loudnessRow = buildToggleRow(
     '响度均衡',
-    '安全衰减过响视频；原生音频始终直出，不由扩展接管。',
+    '动态增益补偿并限制峰值，不修改播放器音量。',
     settings.loudnessNormalization,
     value => void updateLoudness(value),
   )
@@ -338,51 +323,6 @@ function findVideo(): HTMLVideoElement | null {
   return player?.querySelector<HTMLVideoElement>('video') ?? document.querySelector<HTMLVideoElement>('video')
 }
 
-async function restorePlaybackSpeed(video: HTMLVideoElement | null) {
-  if (!video || !settings.rememberSpeed || rememberedSpeed === null)
-    return
-  if (Math.abs(video.playbackRate - rememberedSpeed) > 0.01)
-    video.playbackRate = rememberedSpeed
-}
-
-async function savePlaybackSpeed(video: HTMLVideoElement) {
-  if (!settings.rememberSpeed || performance.now() - lastUserInteractionAt > 2000)
-    return
-  rememberedSpeed = clamp(video.playbackRate, 0.25, 4)
-  await browser.storage.local.set({ [LAST_SPEED_KEY]: rememberedSpeed })
-}
-
-function captureVideoStream(video: HTMLVideoElement): MediaStream | null {
-  const capturable = video as CapturableVideoElement
-  const capture = capturable.captureStream ?? capturable.mozCaptureStream
-  if (!capture)
-    return null
-  try {
-    return capture.call(video)
-  }
-  catch {
-    return null
-  }
-}
-
-function applyNormalizedVolume(video: HTMLVideoElement, pipeline: AudioPipeline) {
-  const nextVolume = clamp(pipeline.userVolume * pipeline.normalizationFactor, 0, 1)
-  if (Math.abs(video.volume - nextVolume) < 0.004) {
-    pipeline.lastAppliedVolume = video.volume
-    return
-  }
-  pipeline.lastAppliedVolume = nextVolume
-  video.volume = nextVolume
-}
-
-function restoreUserVolume(video: HTMLVideoElement, pipeline: AudioPipeline) {
-  const restored = clamp(pipeline.userVolume, 0, 1)
-  pipeline.normalizationFactor = 1
-  pipeline.lastAppliedVolume = restored
-  if (Math.abs(video.volume - restored) >= 0.004)
-    video.volume = restored
-}
-
 function stopNormalizer(pipeline: AudioPipeline) {
   if (pipeline.timer !== null) {
     window.clearInterval(pipeline.timer)
@@ -390,24 +330,24 @@ function stopNormalizer(pipeline: AudioPipeline) {
   }
 }
 
-function disposeAudioPipeline(video: HTMLVideoElement) {
-  const pipeline = audioPipelines.get(video)
-  if (!pipeline)
-    return
+function disconnectAudioGraph(pipeline: AudioPipeline) {
+  try { pipeline.source.disconnect() } catch {}
+  try { pipeline.analyser.disconnect() } catch {}
+  try { pipeline.gain.disconnect() } catch {}
+  try { pipeline.compressor.disconnect() } catch {}
+}
 
+function connectBypass(pipeline: AudioPipeline) {
   stopNormalizer(pipeline)
-  video.removeEventListener('volumechange', pipeline.onVolumeChange)
-  restoreUserVolume(video, pipeline)
-  try {
-    pipeline.source.disconnect()
-    pipeline.analyser.disconnect()
-    pipeline.silentSink.disconnect()
-  }
-  catch {
-    // Nodes may already be detached during page teardown.
-  }
-  void pipeline.context.close().catch(() => {})
-  audioPipelines.delete(video)
+  disconnectAudioGraph(pipeline)
+  pipeline.gainDb = 0
+  pipeline.smoothedLevelDb = null
+  pipeline.gain.gain.cancelScheduledValues(pipeline.context.currentTime)
+  pipeline.gain.gain.value = 1
+  pipeline.source.connect(pipeline.context.destination)
+  pipeline.normalized = false
+  if (pipeline.context.state === 'suspended')
+    void pipeline.context.resume().catch(() => {})
 }
 
 function startNormalizer(pipeline: AudioPipeline, video: HTMLVideoElement) {
@@ -415,7 +355,7 @@ function startNormalizer(pipeline: AudioPipeline, video: HTMLVideoElement) {
     return
 
   const tick = () => {
-    if (!settings.loudnessNormalization || video !== activeVideo || video.muted || video.paused)
+    if (!settings.loudnessNormalization || !pipeline.normalized || video !== activeVideo || video.paused)
       return
     if (pipeline.context.state !== 'running')
       return
@@ -425,76 +365,118 @@ function startNormalizer(pipeline: AudioPipeline, video: HTMLVideoElement) {
     for (let index = 0; index < pipeline.samples.length; index++)
       squareSum += pipeline.samples[index]! * pipeline.samples[index]!
     const rms = Math.sqrt(squareSum / pipeline.samples.length)
-    if (!Number.isFinite(rms) || rms < 0.004)
+    if (!Number.isFinite(rms) || rms < 0.0025)
       return
 
-    pipeline.smoothedRms = pipeline.smoothedRms
-      ? pipeline.smoothedRms * 0.92 + rms * 0.08
-      : rms
+    const levelDb = 20 * Math.log10(Math.max(rms, 1e-6))
+    if (levelDb < -52)
+      return
 
-    // This intentionally only attenuates loud material. It never boosts or
-    // reroutes native playback, so analyser/context failures cannot mute audio.
-    const targetRms = 0.105
-    const desiredFactor = clamp(targetRms / Math.max(pipeline.smoothedRms, 0.001), 0.55, 1)
-    pipeline.normalizationFactor = pipeline.normalizationFactor * 0.88 + desiredFactor * 0.12
-    applyNormalizedVolume(video, pipeline)
+    pipeline.smoothedLevelDb = pipeline.smoothedLevelDb === null
+      ? levelDb
+      : pipeline.smoothedLevelDb * 0.94 + levelDb * 0.06
+
+    // This is actual audio-path gain normalization. It targets a stable
+    // programme level and is followed by a fast peak compressor. Unlike the
+    // previous implementation it never writes HTMLMediaElement.volume.
+    const targetLevelDb = -18
+    const desiredGainDb = clamp(targetLevelDb - pipeline.smoothedLevelDb, -12, 8)
+    const attack = desiredGainDb < pipeline.gainDb ? 0.22 : 0.055
+    pipeline.gainDb += (desiredGainDb - pipeline.gainDb) * attack
+
+    const linearGain = 10 ** (pipeline.gainDb / 20)
+    const timeConstant = desiredGainDb < pipeline.gainDb ? 0.06 : 0.45
+    pipeline.gain.gain.setTargetAtTime(linearGain, pipeline.context.currentTime, timeConstant)
   }
 
-  pipeline.timer = window.setInterval(tick, 250)
+  pipeline.timer = window.setInterval(tick, 200)
+}
+
+function connectNormalizer(pipeline: AudioPipeline, video: HTMLVideoElement) {
+  disconnectAudioGraph(pipeline)
+  pipeline.source.connect(pipeline.analyser)
+  pipeline.analyser.connect(pipeline.gain)
+  pipeline.gain.connect(pipeline.compressor)
+  pipeline.compressor.connect(pipeline.context.destination)
+  pipeline.normalized = true
+  startNormalizer(pipeline, video)
+  if (pipeline.context.state === 'suspended')
+    void pipeline.context.resume().catch(() => {})
 }
 
 function createAudioPipeline(video: HTMLVideoElement): AudioPipeline | null {
-  const stream = captureVideoStream(video)
-  if (!stream || stream.getAudioTracks().length === 0)
-    return null
+  let context: AudioContext | null = null
+  let source: MediaElementAudioSourceNode | null = null
 
   try {
-    const context = new AudioContext()
-    const source = context.createMediaStreamSource(stream)
+    context = new AudioContext()
+    source = context.createMediaElementSource(video)
     const analyser = context.createAnalyser()
-    const silentSink = context.createGain()
-    analyser.fftSize = 2048
-    analyser.smoothingTimeConstant = 0.72
-    silentSink.gain.value = 0
+    const gain = context.createGain()
+    const compressor = context.createDynamicsCompressor()
 
-    // The copied media stream is analysed through a zero-gain sink. The actual
-    // <video> audio path remains untouched and continues through Bilibili/Firefox.
-    source.connect(analyser)
-    analyser.connect(silentSink)
-    silentSink.connect(context.destination)
+    analyser.fftSize = 2048
+    analyser.smoothingTimeConstant = 0.68
+    gain.gain.value = 1
+    compressor.threshold.value = -3
+    compressor.knee.value = 3
+    compressor.ratio.value = 16
+    compressor.attack.value = 0.003
+    compressor.release.value = 0.25
 
     const pipeline: AudioPipeline = {
       context,
-      stream,
       source,
       analyser,
-      silentSink,
+      gain,
+      compressor,
       samples: new Float32Array(new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT)),
       timer: null,
-      smoothedRms: 0,
-      normalizationFactor: 1,
-      userVolume: video.volume,
-      lastAppliedVolume: video.volume,
-      onVolumeChange: () => {},
+      smoothedLevelDb: null,
+      gainDb: 0,
+      normalized: false,
     }
 
-    pipeline.onVolumeChange = () => {
-      if (Math.abs(video.volume - pipeline.lastAppliedVolume) < 0.004)
-        return
-      // Treat native player/user volume changes as the new requested baseline.
-      pipeline.userVolume = video.volume
-      pipeline.lastAppliedVolume = video.volume
-    }
-
-    video.addEventListener('volumechange', pipeline.onVolumeChange)
     audioPipelines.set(video, pipeline)
-    startNormalizer(pipeline, video)
+    if (settings.loudnessNormalization)
+      connectNormalizer(pipeline, video)
+    else
+      connectBypass(pipeline)
     return pipeline
   }
   catch (error) {
-    console.debug('[BiliYouTube] safe loudness analysis unavailable for this media element', error)
+    // If createMediaElementSource succeeded before another setup step failed,
+    // reconnect it directly so the media element remains audible.
+    if (context && source) {
+      try {
+        source.connect(context.destination)
+        void context.resume().catch(() => {})
+      }
+      catch {}
+    }
+    else if (context) {
+      void context.close().catch(() => {})
+    }
+    console.debug('[BiliYouTube] loudness normalization unavailable for this media element', error)
     return null
   }
+}
+
+function bypassAudioPipeline(video: HTMLVideoElement) {
+  const pipeline = audioPipelines.get(video)
+  if (pipeline)
+    connectBypass(pipeline)
+}
+
+function disposeAudioPipeline(video: HTMLVideoElement) {
+  const pipeline = audioPipelines.get(video)
+  if (!pipeline)
+    return
+
+  stopNormalizer(pipeline)
+  disconnectAudioGraph(pipeline)
+  void pipeline.context.close().catch(() => {})
+  audioPipelines.delete(video)
 }
 
 function resumeAudioPipeline(video: HTMLVideoElement) {
@@ -504,17 +486,22 @@ function resumeAudioPipeline(video: HTMLVideoElement) {
 }
 
 function updateAudioPipeline(video: HTMLVideoElement) {
+  let pipeline = audioPipelines.get(video)
+
   if (!settings.loudnessNormalization) {
-    disposeAudioPipeline(video)
+    if (pipeline)
+      connectBypass(pipeline)
     return
   }
 
-  let pipeline = audioPipelines.get(video)
   if (!pipeline && !video.paused)
     pipeline = createAudioPipeline(video) ?? undefined
   if (!pipeline)
     return
-  startNormalizer(pipeline, video)
+  if (!pipeline.normalized)
+    connectNormalizer(pipeline, video)
+  else
+    startNormalizer(pipeline, video)
   resumeAudioPipeline(video)
 }
 
@@ -658,17 +645,14 @@ function onCollectionLinkClick(event: MouseEvent) {
 async function bindVideo(video: HTMLVideoElement) {
   if (video === activeVideo)
     return
-  videoCleanup?.()
+  videoCleanup?.(false)
   activeVideo = video
 
-  const onRateChange = () => void savePlaybackSpeed(video)
   const onMetadata = () => {
-    void restorePlaybackSpeed(video)
     if (activeCollection)
       void restoreCollectionProgress(video, activeCollection)
   }
   const onPlaying = () => {
-    void restorePlaybackSpeed(video)
     updateAudioPipeline(video)
     resumeAudioPipeline(video)
   }
@@ -677,19 +661,19 @@ async function bindVideo(video: HTMLVideoElement) {
       void saveProgress(video, activeCollection)
   }
 
-  video.addEventListener('ratechange', onRateChange)
   video.addEventListener('loadedmetadata', onMetadata)
   video.addEventListener('playing', onPlaying)
   video.addEventListener('timeupdate', onTimeUpdate)
-  videoCleanup = () => {
-    video.removeEventListener('ratechange', onRateChange)
+  videoCleanup = (keepAudio = false) => {
     video.removeEventListener('loadedmetadata', onMetadata)
     video.removeEventListener('playing', onPlaying)
     video.removeEventListener('timeupdate', onTimeUpdate)
-    disposeAudioPipeline(video)
+    if (keepAudio)
+      bypassAudioPipeline(video)
+    else
+      disposeAudioPipeline(video)
   }
 
-  await restorePlaybackSpeed(video)
   updateAudioPipeline(video)
   if (activeCollection)
     await restoreCollectionProgress(video, activeCollection)
@@ -754,7 +738,6 @@ export default defineContentScript({
     const locationTimer = window.setInterval(() => void syncEnhancements(), 800)
     document.addEventListener('click', onCollectionLinkClick, true)
     const onUserPointerDown = (event: PointerEvent) => {
-      lastUserInteractionAt = performance.now()
       if (activeVideo) {
         updateAudioPipeline(activeVideo)
         resumeAudioPipeline(activeVideo)
@@ -767,7 +750,6 @@ export default defineContentScript({
       closeFloatingSettings(true)
     }
     const onUserKeyDown = () => {
-      lastUserInteractionAt = performance.now()
       if (activeVideo) {
         updateAudioPipeline(activeVideo)
         resumeAudioPipeline(activeVideo)
@@ -783,7 +765,7 @@ export default defineContentScript({
       document.removeEventListener('pointerdown', onUserPointerDown, true)
       document.removeEventListener('keydown', onUserKeyDown, true)
       cancelSettingsClose()
-      videoCleanup?.()
+      videoCleanup?.(true)
       videoCleanup = null
       activeVideo = null
       settingsPanel?.remove()
