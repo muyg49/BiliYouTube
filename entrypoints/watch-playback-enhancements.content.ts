@@ -31,7 +31,7 @@ interface AudioPipeline {
   analyser: AnalyserNode
   gain: GainNode
   compressor: DynamicsCompressorNode
-  samples: Float32Array
+  samples: Float32Array<ArrayBuffer>
   timer: number | null
   smoothedRms: number
 }
@@ -361,7 +361,7 @@ function createAudioPipeline(video: HTMLVideoElement): AudioPipeline | null {
       analyser,
       gain,
       compressor,
-      samples: new Float32Array(analyser.fftSize),
+      samples: new Float32Array(new ArrayBuffer(analyser.fftSize * Float32Array.BYTES_PER_ELEMENT)),
       timer: null,
       smoothedRms: 0,
     }
