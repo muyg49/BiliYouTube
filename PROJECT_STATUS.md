@@ -23,7 +23,7 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Firefox `0.2.1` was submitted to AMO on 2026-10-19. AMO file ID: `5137794`; publish run `39197607355` succeeded.
 - Firefox `0.2.2` was submitted to AMO on 2026-10-19. AMO file ID: `5137862`; publish run `39201420988` succeeded.
 - Firefox `0.2.3` was submitted to AMO on 2026-10-19 after PR #7 watch playback enhancements. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137910`; publish run `39203885843` succeeded.
-- PR #8 contains post-0.2.3 real-world Firefox watch-page fixes and is merged to `main`; these fixes are not yet published as a new AMO version.
+- Firefox `0.2.4` was submitted to AMO on 2026-10-19 after PR #8 watch-page fixes. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137942`; publish run `39205551787` succeeded.
 
 ## Implemented
 
@@ -138,6 +138,8 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - Main run `39203689695` passed before the Firefox `0.2.3` release.
 - Firefox `0.2.3` publish run `39203885843` succeeded, including AMO submission.
 - PR #8 final CI run `39205082017` passed TypeScript compilation, Firefox packaging and artifact upload before merge.
+- Main run `39205177242` passed after PR #8 and status-document updates.
+- Firefox `0.2.4` publish run `39205551787` succeeded, including AMO submission and validation with 0 errors.
 
 ## Architecture decisions
 
@@ -155,7 +157,7 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate merged PR #8 in signed-in Firefox: BYT placement/hover/pinning, right-column metadata, ad hiding, and active-item centering in right-side collection/multi-P lists.
+1. Validate Firefox `0.2.4` in signed-in Firefox: BYT placement/hover/pinning, right-column metadata, ad hiding, and active-item centering in right-side collection/multi-P lists.
 2. Verify collection resume and per-episode playback-position restore across real collection variants.
 3. Verify speed-memory and loudness normalization across navigation, pause/resume and fullscreen modes.
 4. Continue testing watch-page controls, wide/web/browser fullscreen, toolbar actions, follow, description, comments and related-video navigation.
