@@ -95,6 +95,17 @@ Currently handled native regions include:
 
 The video-page shell adds a YouTube-style top bar and overlay navigation drawer. Player `data-screen` changes and browser fullscreen are tracked so normal, wide, web-fullscreen and browser-fullscreen modes release layout authority to Bilibili when needed. Fullscreen modes hide BiliYouTube chrome rather than interfering with the player.
 
+PR #7 added an isolated playback-enhancement content script on top of the native-first watch page:
+
+- Additional YouTube-style spacing and related-video/card proportions without replacing the native player.
+- Collection/multi-part playback remembers the last selected episode and the playback position for each episode.
+- Explicit user selection of another episode takes priority over automatic collection resume.
+- The active collection episode is automatically centered in the scrollable episode list where the native DOM exposes a usable list.
+- Playback-speed memory is an opt-in setting and applies the user's last explicitly selected speed to new videos.
+- Loudness normalization is enabled by default and can be disabled from the playback settings UI. It uses a Web Audio analyser, adaptive gain and peak compression to reduce large loudness differences between videos.
+- Player-setting integration prefers the native settings surface and exposes a small BiliYouTube fallback control if that surface cannot be safely extended.
+- No additional browser permissions were added; existing extension storage is reused.
+
 Watch-page DOM integration is fail-open: when a selector is no longer recognized, the native region is left untouched rather than removed or replaced.
 
 ## Current Bilibili API layer
@@ -137,7 +148,7 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - PR #4 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
 - PR #5 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
 - PR #6 passed TypeScript compilation, Firefox packaging and artifact upload before merge.
-- Latest `main` CI after the PR #6 documentation update succeeded.
+- PR #7 initially exposed a TypeScript 5.9 Web Audio typed-array compatibility error; the fix was committed and CI run `39203590105` then passed TypeScript compilation, Firefox packaging and artifact upload before merge.
 - Firefox `0.2.2` publish run `39201420988` succeeded, including AMO submission.
 
 ## Architecture decisions
@@ -149,6 +160,7 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - Bilibili favorite folders map to YouTube-style playlists while retaining Bilibili as the source of truth.
 - Homepage: render BiliYouTube's own Vue interface rather than continuously fighting Bilibili homepage CSS.
 - Watch page: keep the native Bilibili player and stateful controls; restyle/reflow rather than detach/reparent them.
+- Playback enhancements should remain isolated from the main watch-page chrome/reflow script and degrade independently when selectors or browser media behavior change.
 - DOM integration must fail open when Bilibili changes selectors.
 - Use real Bilibili account/content data rather than fake UI data.
 - Minimize extension permissions.
@@ -156,12 +168,14 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate Firefox `0.2.2`: dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive.
-2. Validate playlist covers and account/notification popovers in signed-in Firefox.
-3. Test watch-page playback, controls, wide mode, web fullscreen, browser fullscreen, like/coin/favorite/share, follow, description expansion, comments/editor/replies and related-video links.
-4. Refine channel header/tabs and subscriptions grid proportions from real screenshots.
-5. Continue eliminating remaining native-page escapes where Bilibili has a meaningful equivalent inside the BiliYouTube shell.
-6. Add an explicit user-facing compatibility fallback/disable control for future Bilibili DOM breakage.
+1. Validate the merged PR #7 watch-page changes in signed-in Firefox, especially ordinary videos, multi-P videos and collection/season pages.
+2. Verify speed-memory toggling, loudness normalization, native/fallback settings UI and audio behavior across navigation, pause/resume and fullscreen modes.
+3. Validate Firefox `0.2.2`: dedicated Subscriptions route, full sidebar expansion and WBI-backed channel upload archive.
+4. Validate playlist covers and account/notification popovers in signed-in Firefox.
+5. Test watch-page playback, controls, wide mode, web fullscreen, browser fullscreen, like/coin/favorite/share, follow, description expansion, comments/editor/replies and related-video links.
+6. Refine channel header/tabs and subscriptions grid proportions from real screenshots.
+7. Continue eliminating remaining native-page escapes where Bilibili has a meaningful equivalent inside the BiliYouTube shell.
+8. Add an explicit user-facing compatibility fallback/disable control for future Bilibili DOM breakage.
 
 ## Before each future development session
 
