@@ -212,7 +212,12 @@
   text-align: center;
 }
 
-.chipbar .chip[data-byt-topic-active="true"] {
+.byt-search-route .chipbar .chip[data-byt-topic-active="false"] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.byt-search-route .chipbar .chip[data-byt-topic-active="true"] {
   background: var(--text);
   color: var(--bg);
 }
