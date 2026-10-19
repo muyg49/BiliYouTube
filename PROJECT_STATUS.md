@@ -19,8 +19,8 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 ## Current version
 
 - Package version: `0.1.0`
-- Current milestone: YouTube-style navigation shell and internal library views
-- Next planned milestone: `0.2.0` watch-page layout
+- Current milestone: YouTube-style navigation shell, internal library views, and native-first watch-page first pass
+- Next planned milestone: `0.2.0` watch-page validation/refinement
 
 ## Implemented
 
@@ -51,7 +51,7 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 
 ### YouTube-style navigation/library work
 
-BiliYouTube now keeps major personal-library navigation inside the shared YouTube-style shell instead of sending the user to Bilibili-native pages.
+BiliYouTube keeps major personal-library navigation inside the shared YouTube-style shell instead of sending the user to Bilibili-native pages.
 
 - Subscription `显示更多` expands/collapses inside the sidebar instead of navigating to the native following page.
 - History opens as an internal BiliYouTube view while keeping the YouTube-style top bar and sidebar.
@@ -65,7 +65,31 @@ BiliYouTube now keeps major personal-library navigation inside the shared YouTub
 - Internal Home/History/Playlists/Watch Later navigation uses browser history/hash state so back/forward navigation works without leaving the BiliYouTube shell.
 - No additional browser permissions were added for these library views.
 
-### Bilibili API layer
+### Native-first watch-page first pass
+
+A dedicated content script now targets ordinary `www.bilibili.com/video/*` pages.
+
+Architecture rule: stateful native Bilibili modules stay mounted where Bilibili created them. BiliYouTube discovers and styles/reflows them in place instead of moving or rebuilding them.
+
+Currently handled native regions include:
+
+- Bilibili native player
+- video title/info area
+- UP/uploader and follow area
+- native like/coin/favorite/share toolbar
+- description area
+- comments container
+- related/recommended-video column
+
+BiliYouTube adds its own YouTube-style fixed top bar and overlay navigation drawer on video pages. The drawer includes Home, Dynamic, internal History/Playlists/Watch Later links, the signed-in account, subscriptions, and in-place `显示更多` expansion.
+
+The watch-page script tracks Bilibili player `data-screen` changes plus browser fullscreen so normal, wide, web-fullscreen, and browser-fullscreen modes can release layout control back to Bilibili when necessary. Fullscreen modes hide BiliYouTube chrome rather than interfering with the native player.
+
+The implementation is intentionally fail-open: if a Bilibili DOM selector is no longer recognized, that native region is left untouched instead of being replaced or removed.
+
+This first pass has passed TypeScript compilation, Firefox packaging, and artifact/manifest inspection. The built Firefox manifest contains a dedicated `watch-page` content script for `https://www.bilibili.com/video/*` with its associated CSS. It still requires real signed-in Firefox testing against current Bilibili pages before the watch-page behavior should be considered validated for release.
+
+## Bilibili API layer
 
 Current background API layer includes:
 
@@ -128,8 +152,8 @@ Expected normal release flow:
 
 ## CI state
 
-- `main` CI for commit `0bcef4923ddf0144df1d34091841e3df514268f3` completed successfully.
-- Pull-request CI for the internal Playlists / Watch Later implementation on branch `feature/internal-favorites-watch-later` completed successfully before the documentation update.
+- `main` CI for the internal Playlists / Watch Later merge commit `d07a148a16959b0442352eed02f3dc36bc43ec23` completed successfully.
+- The native-first watch-page implementation has passed pull-request TypeScript compilation, Firefox packaging, artifact upload, and generated-manifest inspection.
 - Feature work should continue to be validated by pull-request CI before merging.
 
 ## Architecture decisions
@@ -139,7 +163,8 @@ Expected normal release flow:
 - Bilibili favorite folders map naturally to YouTube-style playlists; the UI may use YouTube terminology while retaining Bilibili's underlying data model.
 - Homepage: render our own Vue interface rather than continuously fighting Bilibili's homepage CSS.
 - Watch page: keep and reuse Bilibili's native player rather than implementing video playback, qualities, login, and danmaku ourselves.
-- Surrounding watch-page chrome will be replaced/restyled into a YouTube-like layout.
+- Stateful watch-page modules such as the player, follow button, action toolbar, comments/editor, and recommendation links should remain in Bilibili's original DOM whenever possible; BiliYouTube should restyle/reflow rather than detach/reparent them.
+- Watch-page DOM integration must fail open when Bilibili changes selectors.
 - Sidebar should use real Bilibili data instead of CSS pseudo-content.
 - Minimize extension permissions.
 - Firefox is the primary browser; Chromium should remain compatible where practical.
@@ -153,17 +178,17 @@ Reference for concepts only; do not copy source code:
 - YouTubeCat: https://github.com/CCE-Li/YouTubeCat
 - Bilibili-Evolved: https://github.com/the1812/Bilibili-Evolved
 
-Useful ideas previously observed from BewlyCat include native Bilibili player DOM handling, SPA/page integration strategies, and API usage patterns. Reimplement independently.
+Useful ideas previously observed from public projects include native Bilibili player DOM handling, SPA/page integration strategies, and API usage patterns. Reimplement independently.
 
 ## Next development priorities
 
-1. Validate History, Playlists and Watch Later against the real signed-in Bilibili account after installing a test build.
-2. Expand the sidebar toward YouTube desktop parity, including additional `You` and `Explore` sections where they map cleanly to Bilibili functionality.
-3. Implement the YouTube-style Bilibili watch page while preserving the native player.
-4. Build the right-side related-video column.
-5. Add video title, uploader, subscribe/follow state, action row, description area, and comments.
+1. Test the native-first watch page in real signed-in Firefox against current Bilibili: playback/controls, wide mode, web fullscreen, browser fullscreen, like/coin/favorite/share, follow, description expansion, comments/editor/replies, and related-video links.
+2. Fix current Bilibili DOM selector or spacing differences found by that test and move the watch layout closer to YouTube desktop proportions.
+3. Refine the right-side related-video presentation while preserving native links/interactions.
+4. Refine video title, uploader/follow row, action row, description card, and comments spacing to closer YouTube parity.
+5. Expand the sidebar toward YouTube desktop parity where Bilibili has meaningful equivalents.
 6. Refine internal-library spacing and interactions based on real Firefox testing.
-7. Add a user-facing enable/disable or compatibility fallback if DOM replacement causes breakage after Bilibili site updates.
+7. Add a user-facing enable/disable or compatibility fallback if DOM replacement/styling causes breakage after Bilibili site updates.
 
 ## Target watch-page layout
 
