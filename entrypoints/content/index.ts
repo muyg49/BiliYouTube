@@ -2,6 +2,7 @@ import { createApp } from 'vue'
 
 import App from '../../app/App.vue'
 import './style.css'
+import './library.css'
 
 function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
