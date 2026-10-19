@@ -1,0 +1,271 @@
+.byt-search-overlay {
+  --byt-search-bg: #fff;
+  --byt-search-surface: #f2f2f2;
+  --byt-search-hover: #e5e5e5;
+  --byt-search-text: #0f0f0f;
+  --byt-search-muted: #606060;
+  --byt-search-border: #e5e5e5;
+  position: fixed;
+  z-index: 2147483646;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  left: 240px;
+  overflow-y: auto;
+  background: var(--byt-search-bg);
+  color: var(--byt-search-text);
+  font-family: Roboto, Arial, "Noto Sans SC", sans-serif;
+}
+
+.byt-search-overlay[hidden] {
+  display: none !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .byt-search-overlay {
+    --byt-search-bg: #0f0f0f;
+    --byt-search-surface: #272727;
+    --byt-search-hover: #3f3f3f;
+    --byt-search-text: #f1f1f1;
+    --byt-search-muted: #aaa;
+    --byt-search-border: #303030;
+  }
+}
+
+.byt-search-page {
+  width: min(1180px, calc(100% - 56px));
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 28px 0 72px;
+}
+
+.byt-search-heading {
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--byt-search-border);
+  padding-bottom: 18px;
+}
+
+.byt-search-heading h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.byt-search-list {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.byt-search-card {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 16px;
+}
+
+.byt-search-thumb,
+.byt-topic-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: 12px;
+  aspect-ratio: 16 / 9;
+  background: #222;
+}
+
+.byt-search-thumb img,
+.byt-topic-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.byt-search-duration {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 78%);
+  color: #fff;
+  font-size: 12px;
+}
+
+.byt-search-copy {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.byt-search-title,
+.byt-topic-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--byt-search-text);
+  text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.byt-search-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+}
+
+.byt-search-stats,
+.byt-topic-stats {
+  margin-top: 6px;
+  color: var(--byt-search-muted);
+  font-size: 12px;
+}
+
+.byt-search-author {
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  color: var(--byt-search-muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.byt-search-avatar {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--byt-search-surface);
+}
+
+.byt-search-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.byt-search-description {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 12px 0 0;
+  color: var(--byt-search-muted);
+  font-size: 12px;
+  line-height: 18px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.byt-search-topicbar {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  margin: -28px 0 24px;
+  padding: 14px 0;
+  background: var(--byt-search-bg);
+  scrollbar-width: none;
+}
+
+.byt-search-topicbar::-webkit-scrollbar {
+  display: none;
+}
+
+.byt-search-topic {
+  flex: 0 0 auto;
+  height: 36px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--byt-search-surface);
+  color: var(--byt-search-text);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.byt-search-topic:hover {
+  background: var(--byt-search-hover);
+}
+
+.byt-search-topic.active {
+  background: var(--byt-search-text);
+  color: var(--byt-search-bg);
+}
+
+.byt-topic-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 16px;
+}
+
+.byt-topic-card {
+  min-width: 0;
+}
+
+.byt-topic-meta {
+  min-width: 0;
+  padding-top: 10px;
+}
+
+.byt-topic-title {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+.byt-topic-author {
+  display: block;
+  overflow: hidden;
+  margin-top: 7px;
+  color: var(--byt-search-muted);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.byt-search-status {
+  min-height: 100px;
+  display: grid;
+  place-items: center;
+  color: var(--byt-search-muted);
+  font-size: 13px;
+}
+
+.byt-search-route .chipbar .chip.byt-search-chip-active {
+  background: var(--text-primary, #0f0f0f);
+  color: var(--surface-0, #fff);
+}
+
+@media (max-width: 1100px) {
+  .byt-search-overlay {
+    left: 72px;
+  }
+
+  .byt-topic-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .byt-search-overlay {
+    left: 0;
+  }
+
+  .byt-search-page {
+    width: min(100% - 24px, 720px);
+  }
+
+  .byt-search-card {
+    grid-template-columns: 1fr;
+  }
+
+  .byt-topic-grid {
+    grid-template-columns: 1fr;
+  }
+}

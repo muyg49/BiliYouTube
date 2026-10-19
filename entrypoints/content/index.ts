@@ -2,10 +2,12 @@ import { createApp } from 'vue'
 
 import App from '../../app/App.vue'
 import { installInternalNavigation } from './navigation'
+import { installHomepageSearch } from './search'
 import './style.css'
 import './library.css'
 import './navigation.css'
 import './subscriptions.css'
+import './search.css'
 
 function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
@@ -46,10 +48,12 @@ export default defineContentScript({
         const app = createApp(App)
         app.mount(container)
         const navigation = installInternalNavigation(container)
+        const search = installHomepageSearch(container)
         document.documentElement.classList.remove('byt-homepage-booting')
-        return { app, navigation }
+        return { app, navigation, search }
       },
       onRemove(state) {
+        state?.search.destroy()
         state?.navigation.destroy()
         state?.app.unmount()
         document.documentElement.classList.remove('byt-homepage-booting')
