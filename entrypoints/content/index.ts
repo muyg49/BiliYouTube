@@ -5,6 +5,7 @@ import { installInternalNavigation } from './navigation'
 import './style.css'
 import './library.css'
 import './navigation.css'
+import './subscriptions.css'
 
 function isBilibiliHomepage(): boolean {
   return location.hostname === 'www.bilibili.com' && (location.pathname === '/' || location.pathname === '')
