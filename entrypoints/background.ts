@@ -1,6 +1,16 @@
 import { browser } from 'wxt/browser'
 
-import type { ApiRequest, ApiResponse, BiliFollowing, BiliUser, BiliVideo } from '../types/bilibili'
+import type {
+  ApiRequest,
+  ApiResponse,
+  BiliFollowing,
+  BiliHistoryCursor,
+  BiliHistoryFilter,
+  BiliHistoryItem,
+  BiliHistoryPage,
+  BiliUser,
+  BiliVideo,
+} from '../types/bilibili'
 
 interface BiliEnvelope<T> {
   code: number
@@ -37,6 +47,35 @@ interface RecommendItem {
   goto?: string
 }
 
+interface HistoryRawItem {
+  title?: string
+  long_title?: string
+  cover?: string
+  uri?: string
+  author_name?: string
+  author_mid?: number
+  view_at?: number
+  progress?: number
+  duration?: number
+  badge?: string
+  show_title?: string
+  kid?: number
+  history?: {
+    oid?: number
+    bvid?: string
+    business?: string
+  }
+}
+
+interface HistoryData {
+  cursor?: {
+    max?: number
+    view_at?: number
+    business?: string
+  }
+  list?: HistoryRawItem[]
+}
+
 const API = 'https://api.bilibili.com'
 
 async function getJson<T>(url: string): Promise<T> {
@@ -45,6 +84,27 @@ async function getJson<T>(url: string): Promise<T> {
     headers: {
       Accept: 'application/json, text/plain, */*',
     },
+  })
+
+  if (!response.ok)
+    throw new Error(`HTTP ${response.status}`)
+
+  const envelope = await response.json() as BiliEnvelope<T>
+  if (envelope.code !== 0)
+    throw new Error(envelope.message || `Bilibili API error ${envelope.code}`)
+
+  return envelope.data
+}
+
+async function postForm<T = null>(url: string, form: Record<string, string>): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      Accept: 'application/json, text/plain, */*',
+      'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+    },
+    body: new URLSearchParams(form),
   })
 
   if (!response.ok)
@@ -79,6 +139,47 @@ function normalizeVideo(item: PopularItem | RecommendItem): BiliVideo | null {
     view: item.stat?.view ?? 0,
     published: item.pubdate ?? 0,
     reason: 'rcmd_reason' in item ? item.rcmd_reason?.content : undefined,
+  }
+}
+
+function historyUrl(item: HistoryRawItem, oid: number, business: string): string {
+  const bvid = item.history?.bvid
+  if (bvid)
+    return `https://www.bilibili.com/video/${bvid}`
+
+  if (item.uri?.startsWith('https://') || item.uri?.startsWith('http://'))
+    return item.uri.replace(/^http:\/\//, 'https://')
+
+  if (business === 'live')
+    return `https://live.bilibili.com/${oid}`
+  if (business === 'article')
+    return `https://www.bilibili.com/read/cv${oid}`
+
+  return 'https://www.bilibili.com/'
+}
+
+function normalizeHistoryItem(item: HistoryRawItem): BiliHistoryItem | null {
+  const oid = item.history?.oid ?? item.kid ?? 0
+  const business = item.history?.business ?? 'archive'
+  const title = item.title?.trim()
+  if (!oid || !title)
+    return null
+
+  return {
+    id: `${business}:${oid}:${item.view_at ?? 0}`,
+    oid,
+    business,
+    bvid: item.history?.bvid || undefined,
+    title,
+    subtitle: item.show_title || item.long_title || undefined,
+    cover: normalizeImage(item.cover ?? ''),
+    authorName: item.author_name?.trim() || '未知 UP 主',
+    authorMid: item.author_mid ?? 0,
+    viewAt: item.view_at ?? 0,
+    progress: item.progress ?? 0,
+    duration: item.duration ?? 0,
+    badge: item.badge || undefined,
+    url: historyUrl(item, oid, business),
   }
 }
 
@@ -159,6 +260,59 @@ async function getFollowing(mid: number, page = 1): Promise<BiliFollowing[]> {
   }))
 }
 
+async function getHistory(filter: BiliHistoryFilter = 'all', cursor?: BiliHistoryCursor | null): Promise<BiliHistoryPage> {
+  const params = new URLSearchParams({
+    ps: '30',
+    type: filter,
+  })
+
+  if (cursor) {
+    params.set('max', String(cursor.max))
+    params.set('view_at', String(cursor.viewAt))
+    params.set('business', cursor.business)
+  }
+
+  const data = await getJson<HistoryData>(`${API}/x/web-interface/history/cursor?${params}`)
+  const items = (data.list ?? [])
+    .map(normalizeHistoryItem)
+    .filter((item): item is BiliHistoryItem => Boolean(item))
+  const nextCursor = data.cursor && typeof data.cursor.max === 'number' && typeof data.cursor.view_at === 'number'
+    ? {
+        max: data.cursor.max,
+        viewAt: data.cursor.view_at,
+        business: data.cursor.business ?? '',
+      }
+    : null
+
+  return {
+    items,
+    cursor: nextCursor,
+    hasMore: Boolean(nextCursor) && (data.list?.length ?? 0) > 0,
+  }
+}
+
+async function getHistoryState(): Promise<boolean> {
+  return getJson<boolean>(`${API}/x/v2/history/shadow`)
+}
+
+async function setHistoryPaused(paused: boolean, csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/shadow/set`, {
+    switch: String(paused),
+    csrf,
+  })
+}
+
+async function clearHistory(csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/clear`, { csrf })
+}
+
+async function deleteHistory(oid: number, business: string, csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/delete`, {
+    kid: `${business}_${oid}`,
+    csrf,
+  })
+}
+
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(async (message: ApiRequest): Promise<ApiResponse<unknown>> => {
     try {
@@ -169,6 +323,19 @@ export default defineBackground(() => {
           return { ok: true, data: await getFeed(message.page ?? 1) }
         case 'following':
           return { ok: true, data: await getFollowing(message.mid, message.page ?? 1) }
+        case 'history':
+          return { ok: true, data: await getHistory(message.filter, message.cursor) }
+        case 'historyState':
+          return { ok: true, data: await getHistoryState() }
+        case 'historySetPaused':
+          await setHistoryPaused(message.paused, message.csrf)
+          return { ok: true, data: null }
+        case 'historyClear':
+          await clearHistory(message.csrf)
+          return { ok: true, data: null }
+        case 'historyDelete':
+          await deleteHistory(message.oid, message.business, message.csrf)
+          return { ok: true, data: null }
         default:
           return { ok: false, error: 'Unknown request' }
       }

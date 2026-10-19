@@ -1,6 +1,6 @@
 # BiliYouTube Project Status
 
-Last updated: 2026-10-16
+Last updated: 2026-10-19
 
 ## Repository
 
@@ -19,7 +19,7 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 ## Current version
 
 - Package version: `0.1.0`
-- Current milestone: homepage MVP / Firefox publishing infrastructure
+- Current milestone: YouTube-style navigation shell and internal library views
 - Next planned milestone: `0.2.0` watch-page layout
 
 ## Implemented
@@ -49,6 +49,19 @@ The project must not copy BewlyCat, YouTubeCat, Bilibili-Evolved, or other proje
 - Infinite loading
 - Light/dark system theme support
 
+### YouTube-style navigation/library work
+
+Work started on replacing Bilibili page jumps with BiliYouTube-owned internal views.
+
+- Subscription `显示更多` expands/collapses inside the sidebar instead of navigating to the native following page.
+- History opens as an internal BiliYouTube view while keeping the YouTube-style top bar and sidebar.
+- History layout mirrors YouTube desktop structure with grouped entries, filters, search, and a right-side control column.
+- History uses Bilibili account data through the existing browser session.
+- History supports infinite cursor loading, clear-all, pause/resume history, and item removal management.
+- Internal Home/History navigation uses browser history/hash state so back/forward navigation works without leaving the BiliYouTube shell.
+
+Favorites and Watch Later still currently link to Bilibili-native pages and are candidates for the next internal-view pass.
+
 ### Bilibili API layer
 
 Current background API layer includes:
@@ -57,6 +70,10 @@ Current background API layer includes:
 - `x/web-interface/wbi/index/top/feed/rcmd` for recommendation feed
 - `x/web-interface/popular` as fallback
 - `x/relation/followings` for subscriptions/followings
+- `x/web-interface/history/cursor` for watch history
+- `x/v2/history/shadow` and `x/v2/history/shadow/set` for history pause state
+- `x/v2/history/clear` for clearing history
+- `x/v2/history/delete` for removing history entries
 
 Requests reuse the existing Bilibili browser session. No broad `cookies` permission is currently requested.
 
@@ -70,22 +87,19 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ### Initial AMO submission
 
-Initial Firefox AMO submission succeeded on 2026-10-16.
+The initial Firefox AMO submission has been approved and the extension has been installed successfully by the project owner.
 
 - AMO slug: `biliyoutube`
 - AMO version ID: `6583128`
 - Developer version page: https://addons.mozilla.org/en-US/developers/addon/biliyoutube/versions/6583128
-- Current state at this handoff: submitted to Mozilla; approval/signing/listing may still be pending.
 
-The initial listing was created with `web-ext sign`. After creation, the normal WXT AMO update path was rechecked and `wxt submit --dry-run` succeeded, so AMO now recognizes the extension ID.
+The initial listing was created with `web-ext sign`. After creation, the normal WXT AMO update path was rechecked and `wxt submit --dry-run` succeeded, so AMO recognizes the extension ID for subsequent releases.
 
 ### Firefox manifest details
 
 - Gecko ID: `biliyoutube@muyg49.github.io`
 - Minimum Firefox version currently set to `142.0`
 - Firefox data collection permission currently declares `websiteContent`
-
-This declaration was added to satisfy Mozilla's newer Firefox extension data-consent requirements while the extension reads Bilibili page/API content.
 
 ### Release workflow
 
@@ -103,14 +117,16 @@ Expected normal release flow:
 4. CI submits the new version to AMO with the stored JWT secrets.
 5. Mozilla reviews/signs/publishes it.
 
-## CI state at handoff
+## CI state
 
-Latest checked `main` CI run for commit `57ce32d96dd9e298f554a0cf2258a38465e77520` completed successfully.
+Before this development pass, the latest checked `main` CI run for commit `cdd4602ff608b98bc12db2b3d069b1306555abe4` completed successfully.
 
-The Firefox package also passed `web-ext lint` with zero errors during initial AMO submission. Warnings observed at that time included an `innerHTML` warning from bundled/runtime code and a minimum-version/data-consent compatibility warning; the Firefox minimum version was then aligned to `142.0`.
+Feature work should be validated by pull-request CI before merging.
 
 ## Architecture decisions
 
+- BiliYouTube should increasingly behave as a small SPA shell rather than sending sidebar navigation directly to Bilibili-native pages.
+- Internal views should preserve the shared top bar/sidebar and load Bilibili data through APIs where practical.
 - Homepage: render our own Vue interface rather than continuously fighting Bilibili's homepage CSS.
 - Watch page: keep and reuse Bilibili's native player rather than implementing video playback, qualities, login, and danmaku ourselves.
 - Surrounding watch-page chrome will be replaced/restyled into a YouTube-like layout.
@@ -131,12 +147,12 @@ Useful ideas previously observed from BewlyCat include native Bilibili player DO
 
 ## Next development priorities
 
-1. Implement the YouTube-style Bilibili watch page.
-2. Preserve and place the native Bilibili player in the left/main column.
-3. Build the right-side related-video column.
-4. Add video title, uploader, subscribe/follow state, action row, and description area.
-5. Integrate comments while reusing Bilibili functionality where practical.
-6. Refine homepage spacing/card proportions after testing in real Firefox.
+1. Finish and validate the internal History view against the real signed-in Bilibili session.
+2. Convert Favorites and Watch Later into BiliYouTube-owned YouTube-style internal views.
+3. Expand the sidebar toward YouTube desktop parity, including additional `You` and `Explore` sections where useful.
+4. Implement the YouTube-style Bilibili watch page while preserving the native player.
+5. Build the right-side related-video column.
+6. Add video title, uploader, subscribe/follow state, action row, description area, and comments.
 7. Add a user-facing enable/disable or compatibility fallback if DOM replacement causes breakage after Bilibili site updates.
 
 ## Target watch-page layout

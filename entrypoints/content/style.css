@@ -94,7 +94,13 @@ svg {
 .icon-button,
 .create-button,
 .login-button,
-.more-button {
+.more-button,
+.brand-button,
+.sidebar-button,
+.show-more,
+.history-action,
+.history-delete-button,
+.history-inline-error button {
   border: 0;
   color: var(--text);
   background: transparent;
@@ -122,6 +128,10 @@ svg {
   font-weight: 700;
   letter-spacing: -0.5px;
   white-space: nowrap;
+}
+
+.brand-button {
+  padding: 0;
 }
 
 .brand-mark {
@@ -210,8 +220,8 @@ svg {
 }
 
 .login-button {
-  height: 36px;
-  display: grid;
+  min-height: 36px;
+  display: inline-grid;
   place-items: center;
   padding: 0 16px;
   border-radius: 18px;
@@ -243,15 +253,34 @@ svg {
   gap: 4px;
 }
 
-.sidebar-section h2 {
-  margin: 8px 12px 4px;
+.section-heading-link {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 12px;
+  border-radius: 10px;
+}
+
+.section-heading-link:not(.static-heading):hover {
+  background: var(--surface-2);
+}
+
+.section-heading-link h2 {
+  margin: 0;
   font-size: 16px;
   font-weight: 600;
+}
+
+.section-heading-link svg {
+  width: 18px;
+  height: 18px;
 }
 
 .sidebar-item,
 .channel-item,
 .show-more {
+  width: 100%;
   min-height: 40px;
   display: flex;
   align-items: center;
@@ -259,6 +288,7 @@ svg {
   padding: 0 12px;
   border-radius: 10px;
   font-size: 14px;
+  text-align: left;
   white-space: nowrap;
 }
 
@@ -273,6 +303,10 @@ svg {
   font-weight: 600;
 }
 
+.sidebar-button {
+  font-family: inherit;
+}
+
 .channel-item {
   gap: 14px;
 }
@@ -285,15 +319,22 @@ svg {
   object-fit: cover;
 }
 
-.channel-item span {
+.channel-item span,
+.sidebar-item span,
+.show-more span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .show-more {
-  padding-left: 50px;
-  color: var(--muted);
+  gap: 14px;
+}
+
+.show-more svg {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
 }
 
 .divider {
@@ -389,6 +430,7 @@ svg {
   position: absolute;
   right: 6px;
   bottom: 6px;
+  z-index: 2;
   padding: 2px 4px;
   border-radius: 4px;
   background: rgb(0 0 0 / 78%);
@@ -469,6 +511,7 @@ svg {
 }
 
 .video-card:hover .more-button,
+.history-card:hover .more-button,
 .more-button:focus-visible {
   opacity: 1;
 }
@@ -520,6 +563,300 @@ svg {
   place-items: center;
 }
 
+.history-main {
+  padding: 0 24px 72px;
+}
+
+.history-layout {
+  width: min(1180px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 780px) minmax(260px, 320px);
+  gap: 56px;
+  margin: 0 auto;
+  padding-top: 54px;
+}
+
+.history-content {
+  min-width: 0;
+}
+
+.history-header {
+  margin-bottom: 26px;
+}
+
+.history-header h1 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 40px;
+}
+
+.history-filter-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.history-filter-row::-webkit-scrollbar {
+  display: none;
+}
+
+.history-inline-error {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.history-inline-error button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.history-inline-error button:hover {
+  background: var(--surface-3);
+}
+
+.history-inline-error svg {
+  width: 18px;
+  height: 18px;
+}
+
+.history-loading,
+.history-empty {
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.history-empty h2,
+.history-empty p {
+  margin: 0;
+}
+
+.history-empty h2 {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.history-day-group + .history-day-group {
+  margin-top: 34px;
+}
+
+.history-day-group > h2 {
+  margin: 0 0 12px;
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 28px;
+}
+
+.history-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 246px minmax(0, 1fr) 36px;
+  gap: 16px;
+  min-height: 138px;
+  padding: 0 0 16px;
+}
+
+.history-card + .history-card {
+  padding-top: 0;
+}
+
+.history-thumb {
+  position: relative;
+  width: 246px;
+  height: 138px;
+  display: block;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.history-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.history-progress {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  bottom: 0;
+  height: 3px;
+  max-width: 100%;
+  background: #ff0033;
+}
+
+.history-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  z-index: 2;
+  max-width: 120px;
+  overflow: hidden;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgb(0 0 0 / 74%);
+  color: white;
+  font-size: 11px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-copy {
+  min-width: 0;
+  padding-top: 2px;
+}
+
+.history-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.history-author,
+.history-meta,
+.history-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.history-author {
+  display: block;
+  width: fit-content;
+  margin-top: 6px;
+}
+
+.history-author[href]:hover {
+  color: var(--text);
+}
+
+.history-subtitle {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  margin: 3px 0 0;
+}
+
+.history-meta {
+  margin-top: 3px;
+}
+
+.history-delete-button,
+.history-more {
+  align-self: start;
+}
+
+.history-delete-button {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.history-delete-button:hover {
+  background: var(--surface-2);
+}
+
+.history-delete-button:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
+.history-controls {
+  position: sticky;
+  top: 54px;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-search {
+  height: 42px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
+}
+
+.history-search svg {
+  width: 22px;
+  height: 22px;
+}
+
+.history-search input {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  color: var(--text);
+  background: transparent;
+  font-size: 14px;
+}
+
+.history-action {
+  min-height: 48px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px;
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.history-action:hover,
+.history-action.active {
+  background: var(--surface-2);
+}
+
+.history-action:disabled {
+  cursor: default;
+  opacity: .45;
+}
+
+.history-action svg {
+  width: 22px;
+  height: 22px;
+}
+
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -534,6 +871,28 @@ svg {
   .feed-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .history-layout {
+    width: min(1080px, 100%);
+    grid-template-columns: minmax(0, 1fr) 280px;
+    gap: 40px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .history-layout {
+    display: block;
+    width: min(800px, 100%);
+  }
+
+  .history-controls {
+    position: static;
+    margin-bottom: 28px;
+  }
+
+  .history-search {
+    margin-bottom: 10px;
+  }
 }
 
 @media (max-width: 1100px) {
@@ -547,7 +906,7 @@ svg {
 
   .brand-text,
   .sidebar-item span,
-  .sidebar-section h2,
+  .section-heading-link,
   .subscriptions,
   .divider,
   .create-button span {
@@ -573,6 +932,10 @@ svg {
 
   .feed-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .history-main {
+    padding-inline: 20px;
   }
 }
 
@@ -604,5 +967,38 @@ svg {
 
   .chipbar {
     padding-inline: 12px;
+  }
+
+  .history-main {
+    padding-inline: 12px;
+  }
+
+  .history-layout {
+    padding-top: 30px;
+  }
+
+  .history-header h1 {
+    font-size: 26px;
+  }
+
+  .history-card {
+    grid-template-columns: 42% minmax(0, 1fr) 32px;
+    gap: 10px;
+    min-height: 92px;
+  }
+
+  .history-thumb {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 16 / 9;
+  }
+
+  .history-title {
+    font-size: 14px;
+    line-height: 19px;
+  }
+
+  .history-subtitle {
+    display: none;
   }
 }
