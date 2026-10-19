@@ -1,7 +1,15 @@
 import { callApi } from '../../lib/api'
-import type { BiliDynamicFilter, BiliDynamicItem, BiliDynamicPage, BiliUser } from '../../types/bilibili'
+import type {
+  BiliChannelVideo,
+  BiliChannelVideoPage,
+  BiliDynamicItem,
+  BiliDynamicPage,
+  BiliFollowing,
+  BiliUser,
+} from '../../types/bilibili'
 
 type InternalRoute =
+  | { kind: 'subscriptions' }
   | { kind: 'dynamic' }
   | { kind: 'channel'; mid: number }
 
@@ -22,7 +30,7 @@ function element<K extends keyof HTMLElementTagNameMap>(tag: K, className = ''):
   return node
 }
 
-function text(node: HTMLElement, value: string) {
+function text<T extends HTMLElement>(node: T, value: string): T {
   node.textContent = value
   return node
 }
@@ -55,7 +63,17 @@ function relativeTime(timestamp: number): string {
   return '刚刚'
 }
 
+function formatViews(value: number): string {
+  if (value >= 100_000_000)
+    return `${(value / 100_000_000).toFixed(1)}亿次观看`
+  if (value >= 10_000)
+    return `${(value / 10_000).toFixed(value >= 100_000 ? 0 : 1)}万次观看`
+  return `${value}次观看`
+}
+
 function routeFromLocation(): InternalRoute | null {
+  if (location.hash === '#biliyoutube/subscriptions')
+    return { kind: 'subscriptions' }
   if (location.hash === '#biliyoutube/dynamic')
     return { kind: 'dynamic' }
   const channel = location.hash.match(/^#biliyoutube\/channel\/(\d+)$/)
@@ -95,10 +113,19 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     return container.querySelector<HTMLAnchorElement>('.sidebar-item[href^="https://t.bilibili.com"]')
   }
 
+  function subscriptionsHeading(): HTMLAnchorElement | null {
+    return container.querySelector<HTMLAnchorElement>('.subscriptions .section-heading-link')
+  }
+
   function setSidebarRoute(route: InternalRoute | null) {
     container.classList.toggle('byt-internal-route', Boolean(route))
-    const dynamicLink = dynamicSidebarLink()
-    dynamicLink?.classList.toggle('byt-bridge-active', route?.kind === 'dynamic')
+    dynamicSidebarLink()?.classList.toggle('byt-bridge-active', route?.kind === 'dynamic')
+    subscriptionsHeading()?.classList.toggle('byt-bridge-active', route?.kind === 'subscriptions')
+
+    for (const anchor of container.querySelectorAll<HTMLAnchorElement>('.subscriptions .channel-item')) {
+      const match = normalizeHref(anchor.href).match(/^https:\/\/space\.bilibili\.com\/(\d+)/)
+      anchor.classList.toggle('byt-bridge-active', route?.kind === 'channel' && Number(match?.[1]) === route.mid)
+    }
   }
 
   function hidePopover() {
@@ -157,10 +184,10 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     button.type = 'button'
     button.append(makeAvatar(item.author.face, item.author.name))
     const copy = element('span', 'byt-dynamic-author-copy')
-    text(element('strong'), item.author.name)
-    const name = text(element('strong'), item.author.name)
-    const meta = text(element('small'), relativeTime(item.published))
-    copy.append(name, meta)
+    copy.append(
+      text(element('strong'), item.author.name),
+      text(element('small'), relativeTime(item.published)),
+    )
     button.append(copy)
     button.addEventListener('click', () => {
       openChannel({ mid: item.author.mid, name: item.author.name, face: item.author.face })
@@ -173,10 +200,8 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     if (showAuthor)
       card.append(makeAuthorButton(item))
 
-    if (item.text) {
-      const body = text(element('p', 'byt-dynamic-text'), item.text)
-      card.append(body)
-    }
+    if (item.text)
+      card.append(text(element('p', 'byt-dynamic-text'), item.text))
 
     if (item.video) {
       const video = element('a', 'byt-dynamic-video')
@@ -213,6 +238,78 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     return card
   }
 
+  function renderSubscriptionVideo(item: BiliDynamicItem): HTMLElement | null {
+    const video = item.video
+    if (!video)
+      return null
+
+    const card = element('article', 'byt-subscription-video-card')
+    const thumb = element('a', 'byt-subscription-thumb')
+    thumb.href = video.url
+    if (video.cover) {
+      const image = element('img')
+      image.src = video.cover
+      image.alt = video.title
+      image.loading = 'lazy'
+      thumb.append(image)
+    }
+    if (video.durationText)
+      thumb.append(text(element('span', 'byt-dynamic-duration'), video.durationText))
+
+    const meta = element('div', 'byt-subscription-meta')
+    const author = element('button', 'byt-subscription-author')
+    author.type = 'button'
+    author.title = item.author.name
+    author.append(makeAvatar(item.author.face, item.author.name, 'byt-subscription-avatar'))
+    author.addEventListener('click', () => {
+      openChannel({ mid: item.author.mid, name: item.author.name, face: item.author.face })
+    })
+
+    const copy = element('div', 'byt-subscription-copy')
+    const title = text(element('a', 'byt-subscription-title'), video.title)
+    title.href = video.url
+    const channel = text(element('button', 'byt-subscription-channel'), item.author.name)
+    channel.type = 'button'
+    channel.addEventListener('click', () => {
+      openChannel({ mid: item.author.mid, name: item.author.name, face: item.author.face })
+    })
+    const stats = element('div', 'byt-subscription-stats')
+    const pieces = []
+    if (video.viewText)
+      pieces.push(`${video.viewText} 次观看`)
+    if (item.published)
+      pieces.push(relativeTime(item.published))
+    stats.textContent = pieces.join(' · ')
+    copy.append(title, channel, stats)
+    meta.append(author, copy)
+    card.append(thumb, meta)
+    return card
+  }
+
+  function renderChannelVideo(item: BiliChannelVideo): HTMLElement {
+    const card = element('article', 'byt-channel-video-card')
+    const thumb = element('a', 'byt-channel-video-thumb')
+    thumb.href = item.url
+    const image = element('img')
+    image.src = item.cover
+    image.alt = item.title
+    image.loading = 'lazy'
+    thumb.append(image)
+    if (item.durationText)
+      thumb.append(text(element('span', 'byt-dynamic-duration'), item.durationText))
+
+    const copy = element('div', 'byt-channel-video-copy')
+    const title = text(element('a', 'byt-channel-video-title'), item.title)
+    title.href = item.url
+    const meta = text(
+      element('div', 'byt-channel-video-meta'),
+      [formatViews(item.view), relativeTime(item.published)].filter(Boolean).join(' · '),
+    )
+    copy.append(title, meta)
+    card.append(thumb, copy)
+    return card
+  }
+
   function makePageHeader(titleValue: string, subtitle = ''): HTMLElement {
     const header = element('header', 'byt-internal-header')
     const copy = element('div')
@@ -227,6 +324,124 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     hidePopover()
     overlay.hidden = false
     setSidebarRoute(route)
+  }
+
+  async function renderSubscriptions(addHistory = false) {
+    if (addHistory)
+      pushHash('#biliyoutube/subscriptions')
+    const route: InternalRoute = { kind: 'subscriptions' }
+    showOverlay(route)
+    const token = ++renderToken
+    overlay.replaceChildren()
+    overlay.scrollTop = 0
+
+    const page = element('div', 'byt-internal-page byt-subscriptions-page')
+    const toolbar = element('header', 'byt-subscriptions-toolbar')
+    toolbar.append(text(element('h1'), '最新'))
+    const allButton = text(element('button', 'byt-all-subscriptions-button'), '所有订阅')
+    allButton.type = 'button'
+    toolbar.append(allButton)
+    const allPanel = element('div', 'byt-all-subscriptions-panel')
+    allPanel.hidden = true
+    const grid = element('div', 'byt-subscriptions-video-grid')
+    const status = text(element('div', 'byt-internal-status'), '正在加载订阅内容…')
+    page.append(toolbar, allPanel, grid, status)
+    overlay.append(page)
+
+    let offset = ''
+    let hasMore = true
+    let loading = false
+    let allLoaded = false
+
+    allButton.addEventListener('click', async () => {
+      if (!allPanel.hidden) {
+        allPanel.hidden = true
+        allButton.classList.remove('active')
+        return
+      }
+      allPanel.hidden = false
+      allButton.classList.add('active')
+      if (allLoaded)
+        return
+      allPanel.replaceChildren(text(element('div', 'byt-internal-status'), '正在加载全部订阅…'))
+      try {
+        const user = await callApi<BiliUser | null>({ type: 'user' })
+        if (!user || token !== renderToken)
+          return
+        const following = await callApi<BiliFollowing[]>({ type: 'following', mid: user.mid, page: 1 })
+        if (token !== renderToken)
+          return
+        const list = element('div', 'byt-all-subscriptions-grid')
+        for (const channel of following) {
+          const button = element('button', 'byt-all-subscription')
+          button.type = 'button'
+          button.append(makeAvatar(channel.face, channel.uname, 'byt-all-subscription-avatar'))
+          button.append(text(element('span'), channel.uname))
+          button.addEventListener('click', () => {
+            openChannel({ mid: channel.mid, name: channel.uname, face: channel.face })
+          })
+          list.append(button)
+        }
+        allPanel.replaceChildren(list)
+        allLoaded = true
+      }
+      catch (error) {
+        if (token === renderToken) {
+          allPanel.replaceChildren(text(
+            element('div', 'byt-internal-status'),
+            error instanceof Error ? `订阅列表加载失败：${error.message}` : '订阅列表加载失败。',
+          ))
+        }
+      }
+    })
+
+    const loadMore = async () => {
+      if (loading || !hasMore || token !== renderToken)
+        return
+      loading = true
+      status.hidden = false
+      status.textContent = offset ? '正在加载更多…' : '正在加载订阅内容…'
+      try {
+        const result = await callApi<BiliDynamicPage>({
+          type: 'dynamicFeed',
+          filter: 'video',
+          offset,
+        })
+        if (token !== renderToken)
+          return
+        let appended = 0
+        for (const item of result.items) {
+          const card = renderSubscriptionVideo(item)
+          if (card) {
+            grid.append(card)
+            appended += 1
+          }
+        }
+        offset = result.offset
+        hasMore = result.hasMore && result.items.length > 0
+        if (!grid.childElementCount && !hasMore)
+          status.textContent = '暂时没有新的订阅视频。'
+        else if (!hasMore)
+          status.hidden = true
+        else if (!appended)
+          void loadMore()
+      }
+      catch (error) {
+        if (token !== renderToken)
+          return
+        status.textContent = error instanceof Error ? `订阅内容加载失败：${error.message}` : '订阅内容加载失败。'
+        hasMore = false
+      }
+      finally {
+        loading = false
+      }
+    }
+
+    overlay.onscroll = () => {
+      if (overlay.scrollHeight - overlay.scrollTop - overlay.clientHeight < 900)
+        void loadMore()
+    }
+    await loadMore()
   }
 
   async function renderDynamic(addHistory = false) {
@@ -314,74 +529,124 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     dynamicTab.type = 'button'
     tabs.append(videoTab, dynamicTab)
 
-    const feed = element('div', 'byt-dynamic-feed byt-channel-feed')
-    const status = text(element('div', 'byt-internal-status'), '正在加载频道内容…')
-    page.append(hero, tabs, feed, status)
+    const videoGrid = element('div', 'byt-channel-video-grid')
+    const dynamicFeed = element('div', 'byt-dynamic-feed byt-channel-dynamic-feed')
+    dynamicFeed.hidden = true
+    const status = text(element('div', 'byt-internal-status'), '正在加载频道视频…')
+    page.append(hero, tabs, videoGrid, dynamicFeed, status)
     overlay.append(page)
 
-    let filter: BiliDynamicFilter = 'video'
-    let offset = ''
-    let hasMore = true
+    let mode: 'videos' | 'dynamic' = 'videos'
+    let videoPage = 0
+    let videoHasMore = true
+    let dynamicOffset = ''
+    let dynamicHasMore = true
     let loading = false
     let generation = 0
 
     const syncTabs = () => {
-      videoTab.classList.toggle('active', filter === 'video')
-      dynamicTab.classList.toggle('active', filter === 'all')
+      videoTab.classList.toggle('active', mode === 'videos')
+      dynamicTab.classList.toggle('active', mode === 'dynamic')
+      videoGrid.hidden = mode !== 'videos'
+      dynamicFeed.hidden = mode !== 'dynamic'
     }
 
-    const loadMore = async (reset = false) => {
+    const updatePreviewFromDynamic = (item: BiliDynamicItem | undefined) => {
+      if (!item)
+        return
+      const updated = { mid, name: item.author.name, face: item.author.face }
+      channelCache.set(mid, updated)
+      channelName.textContent = updated.name
+      if (updated.face && avatar.querySelector('img') === null) {
+        const image = element('img')
+        image.src = updated.face
+        image.alt = updated.name
+        avatar.replaceChildren(image)
+      }
+    }
+
+    const loadVideos = async (reset = false) => {
       if (loading || token !== renderToken)
         return
       if (reset) {
         generation += 1
-        offset = ''
-        hasMore = true
-        feed.replaceChildren()
+        videoPage = 0
+        videoHasMore = true
+        videoGrid.replaceChildren()
         overlay.scrollTop = 0
       }
-      if (!hasMore)
+      if (!videoHasMore)
         return
       const currentGeneration = generation
       loading = true
       status.hidden = false
-      status.textContent = offset ? '正在加载更多…' : '正在加载频道内容…'
+      status.textContent = videoPage ? '正在加载更多视频…' : '正在加载频道视频…'
       try {
-        const result = await callApi<BiliDynamicPage>({
-          type: 'dynamicFeed',
-          mid,
-          filter,
-          offset,
-        })
-        if (token !== renderToken || currentGeneration !== generation)
+        const nextPage = videoPage + 1
+        const result = await callApi<BiliChannelVideoPage>({ type: 'channelVideos', mid, page: nextPage })
+        if (token !== renderToken || currentGeneration !== generation || mode !== 'videos')
           return
-        const first = result.items[0]
-        if (first) {
-          const updated = { mid, name: first.author.name, face: first.author.face }
-          channelCache.set(mid, updated)
-          channelName.textContent = updated.name
-          channelMeta.textContent = `UID ${mid}`
-          if (updated.face && avatar.querySelector('img') === null) {
-            const image = element('img')
-            image.src = updated.face
-            image.alt = updated.name
-            avatar.replaceChildren(image)
-          }
-        }
         for (const item of result.items)
-          feed.append(renderDynamicCard(item, filter !== 'video'))
-        offset = result.offset
-        hasMore = result.hasMore && result.items.length > 0
-        if (!feed.childElementCount)
-          status.textContent = filter === 'video' ? '这个频道暂时没有可显示的视频。' : '这个频道暂时没有动态。'
-        else if (!hasMore)
+          videoGrid.append(renderChannelVideo(item))
+        videoPage = result.page
+        videoHasMore = result.hasMore
+        channelMeta.textContent = result.total ? `${result.total} 个视频 · UID ${mid}` : `UID ${mid}`
+        if (!videoGrid.childElementCount)
+          status.textContent = '这个频道暂时没有可显示的视频。'
+        else if (!videoHasMore)
           status.hidden = true
       }
       catch (error) {
         if (token !== renderToken || currentGeneration !== generation)
           return
-        status.textContent = error instanceof Error ? `频道加载失败：${error.message}` : '频道加载失败。'
-        hasMore = false
+        status.textContent = error instanceof Error ? `频道视频加载失败：${error.message}` : '频道视频加载失败。'
+        videoHasMore = false
+      }
+      finally {
+        loading = false
+      }
+    }
+
+    const loadDynamic = async (reset = false) => {
+      if (loading || token !== renderToken)
+        return
+      if (reset) {
+        generation += 1
+        dynamicOffset = ''
+        dynamicHasMore = true
+        dynamicFeed.replaceChildren()
+        overlay.scrollTop = 0
+      }
+      if (!dynamicHasMore)
+        return
+      const currentGeneration = generation
+      loading = true
+      status.hidden = false
+      status.textContent = dynamicOffset ? '正在加载更多动态…' : '正在加载频道动态…'
+      try {
+        const result = await callApi<BiliDynamicPage>({
+          type: 'dynamicFeed',
+          mid,
+          filter: 'all',
+          offset: dynamicOffset,
+        })
+        if (token !== renderToken || currentGeneration !== generation || mode !== 'dynamic')
+          return
+        updatePreviewFromDynamic(result.items[0])
+        for (const item of result.items)
+          dynamicFeed.append(renderDynamicCard(item, false))
+        dynamicOffset = result.offset
+        dynamicHasMore = result.hasMore && result.items.length > 0
+        if (!dynamicFeed.childElementCount)
+          status.textContent = '这个频道暂时没有动态。'
+        else if (!dynamicHasMore)
+          status.hidden = true
+      }
+      catch (error) {
+        if (token !== renderToken || currentGeneration !== generation)
+          return
+        status.textContent = error instanceof Error ? `频道动态加载失败：${error.message}` : '频道动态加载失败。'
+        dynamicHasMore = false
       }
       finally {
         loading = false
@@ -389,26 +654,34 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
     }
 
     videoTab.addEventListener('click', () => {
-      if (filter === 'video')
+      if (mode === 'videos')
         return
-      filter = 'video'
+      mode = 'videos'
       syncTabs()
-      void loadMore(true)
+      status.hidden = videoGrid.childElementCount > 0
+      if (!videoGrid.childElementCount)
+        void loadVideos(true)
     })
     dynamicTab.addEventListener('click', () => {
-      if (filter === 'all')
+      if (mode === 'dynamic')
         return
-      filter = 'all'
+      mode = 'dynamic'
       syncTabs()
-      void loadMore(true)
+      status.hidden = dynamicFeed.childElementCount > 0
+      if (!dynamicFeed.childElementCount)
+        void loadDynamic(true)
     })
     syncTabs()
 
     overlay.onscroll = () => {
-      if (overlay.scrollHeight - overlay.scrollTop - overlay.clientHeight < 800)
-        void loadMore()
+      if (overlay.scrollHeight - overlay.scrollTop - overlay.clientHeight >= 900)
+        return
+      if (mode === 'videos')
+        void loadVideos()
+      else
+        void loadDynamic()
     }
-    await loadMore(true)
+    await loadVideos(true)
   }
 
   async function showNotifications() {
@@ -490,7 +763,11 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
         menu.append(button)
       }
       addButton('你的频道', () => openChannel({ mid: user.mid, name: user.name, face: user.face }))
-      addButton('订阅动态', () => {
+      addButton('订阅内容', () => {
+        hidePopover()
+        void renderSubscriptions(true)
+      })
+      addButton('动态', () => {
         hidePopover()
         void renderDynamic(true)
       })
@@ -529,6 +806,20 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
         hidePopover()
       else
         void showNotifications()
+      return true
+    }
+
+    if (anchor.matches('.subscriptions .section-heading-link')) {
+      event.preventDefault()
+      event.stopPropagation()
+      void renderSubscriptions(true)
+      return true
+    }
+
+    if (href.includes('#biliyoutube/subscriptions')) {
+      event.preventDefault()
+      event.stopPropagation()
+      void renderSubscriptions(true)
       return true
     }
 
@@ -580,7 +871,9 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
       hideOverlay()
       return
     }
-    if (route.kind === 'dynamic')
+    if (route.kind === 'subscriptions')
+      void renderSubscriptions(false)
+    else if (route.kind === 'dynamic')
       void renderDynamic(false)
     else
       void renderChannel(route.mid)
@@ -600,6 +893,9 @@ export function installInternalNavigation(container: HTMLElement): InternalNavig
       popover.remove()
       container.classList.remove('byt-internal-route')
       dynamicSidebarLink()?.classList.remove('byt-bridge-active')
+      subscriptionsHeading()?.classList.remove('byt-bridge-active')
+      container.querySelectorAll('.subscriptions .channel-item.byt-bridge-active')
+        .forEach(node => node.classList.remove('byt-bridge-active'))
     },
   }
 }

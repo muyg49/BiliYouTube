@@ -3,6 +3,8 @@ import { browser } from 'wxt/browser'
 import type {
   ApiRequest,
   ApiResponse,
+  BiliChannelVideo,
+  BiliChannelVideoPage,
   BiliDynamicFilter,
   BiliDynamicItem,
   BiliDynamicPage,
@@ -32,6 +34,10 @@ interface NavData {
   mid: number
   uname: string
   face: string
+  wbi_img?: {
+    img_url?: string
+    sub_url?: string
+  }
 }
 
 interface PopularItem {
@@ -100,6 +106,40 @@ interface DynamicData {
   has_more?: boolean
   items?: DynamicRawItem[]
   offset?: string
+}
+
+interface FollowingRawItem {
+  mid: number
+  uname: string
+  face: string
+  sign?: string
+}
+
+interface FollowingData {
+  list?: FollowingRawItem[]
+  total?: number
+}
+
+interface ChannelArchiveRaw {
+  aid?: number
+  bvid?: string
+  title?: string
+  pic?: string
+  description?: string
+  length?: string
+  play?: number | string
+  created?: number
+}
+
+interface ChannelArchiveData {
+  list?: {
+    vlist?: ChannelArchiveRaw[]
+  }
+  page?: {
+    count?: number
+    pn?: number
+    ps?: number
+  }
 }
 
 interface HistoryRawItem {
@@ -178,6 +218,20 @@ interface WatchLaterRawItem {
 }
 
 const API = 'https://api.bilibili.com'
+const WBI_MIXIN_KEY_ENC_TAB = [
+  46, 47, 18, 2, 53, 8, 23, 32, 15, 50, 10, 31, 58, 3, 45, 35,
+  27, 43, 5, 49, 33, 9, 42, 19, 29, 28, 14, 39, 12, 38, 41, 13,
+  37, 48, 7, 16, 24, 55, 40, 61, 26, 17, 0, 1, 60, 51, 30, 4,
+  22, 25, 54, 21, 56, 59, 6, 63, 57, 62, 11, 36, 20, 34, 44, 52,
+]
+const MD5_SHIFT = [
+  7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22,
+  5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20,
+  4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23,
+  6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21,
+]
+const MD5_K = Array.from({ length: 64 }, (_, index) => Math.floor(Math.abs(Math.sin(index + 1)) * 0x1_0000_0000) >>> 0)
+let cachedWbi: { key: string; expiresAt: number } | null = null
 
 async function getJson<T>(url: string): Promise<T> {
   const response = await fetch(url, {
@@ -308,6 +362,33 @@ function normalizeDynamicItem(item: DynamicRawItem): BiliDynamicItem | null {
   }
 }
 
+function normalizeFollowing(item: FollowingRawItem): BiliFollowing {
+  return {
+    mid: item.mid,
+    uname: item.uname,
+    face: normalizeImage(item.face),
+    sign: item.sign,
+  }
+}
+
+function normalizeChannelVideo(item: ChannelArchiveRaw): BiliChannelVideo | null {
+  if (!item.aid || !item.bvid || !item.title || !item.pic)
+    return null
+
+  const numericView = typeof item.play === 'number' ? item.play : Number(item.play ?? 0)
+  return {
+    aid: item.aid,
+    bvid: item.bvid,
+    title: item.title,
+    cover: normalizeImage(item.pic),
+    description: item.description ?? '',
+    durationText: item.length ?? '',
+    view: Number.isFinite(numericView) ? numericView : 0,
+    published: item.created ?? 0,
+    url: `https://www.bilibili.com/video/${item.bvid}`,
+  }
+}
+
 function historyUrl(item: HistoryRawItem, oid: number, business: string): string {
   const bvid = item.history?.bvid
   if (bvid)
@@ -423,6 +504,113 @@ function normalizeWatchLaterItem(item: WatchLaterRawItem): BiliWatchLaterItem | 
   }
 }
 
+function rotateLeft(value: number, amount: number): number {
+  return ((value << amount) | (value >>> (32 - amount))) >>> 0
+}
+
+function md5(input: string): string {
+  const source = new TextEncoder().encode(input)
+  const paddedLength = Math.ceil((source.length + 9) / 64) * 64
+  const bytes = new Uint8Array(paddedLength)
+  bytes.set(source)
+  bytes[source.length] = 0x80
+
+  const bitLength = source.length * 8
+  const tail = new DataView(bytes.buffer)
+  tail.setUint32(paddedLength - 8, bitLength >>> 0, true)
+  tail.setUint32(paddedLength - 4, Math.floor(bitLength / 0x1_0000_0000) >>> 0, true)
+
+  let a0 = 0x67452301
+  let b0 = 0xefcdab89
+  let c0 = 0x98badcfe
+  let d0 = 0x10325476
+
+  for (let offset = 0; offset < bytes.length; offset += 64) {
+    const words = new Uint32Array(16)
+    const view = new DataView(bytes.buffer, offset, 64)
+    for (let index = 0; index < 16; index += 1)
+      words[index] = view.getUint32(index * 4, true)
+
+    let a = a0
+    let b = b0
+    let c = c0
+    let d = d0
+
+    for (let index = 0; index < 64; index += 1) {
+      let f = 0
+      let g = 0
+      if (index < 16) {
+        f = (b & c) | (~b & d)
+        g = index
+      }
+      else if (index < 32) {
+        f = (d & b) | (~d & c)
+        g = (5 * index + 1) % 16
+      }
+      else if (index < 48) {
+        f = b ^ c ^ d
+        g = (3 * index + 5) % 16
+      }
+      else {
+        f = c ^ (b | ~d)
+        g = (7 * index) % 16
+      }
+
+      const previousD = d
+      d = c
+      c = b
+      const sum = (a + (f >>> 0) + MD5_K[index]! + words[g]!) >>> 0
+      b = (b + rotateLeft(sum, MD5_SHIFT[index]!)) >>> 0
+      a = previousD
+    }
+
+    a0 = (a0 + a) >>> 0
+    b0 = (b0 + b) >>> 0
+    c0 = (c0 + c) >>> 0
+    d0 = (d0 + d) >>> 0
+  }
+
+  const output = new Uint8Array(16)
+  const outputView = new DataView(output.buffer)
+  outputView.setUint32(0, a0, true)
+  outputView.setUint32(4, b0, true)
+  outputView.setUint32(8, c0, true)
+  outputView.setUint32(12, d0, true)
+  return Array.from(output, byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function filenameKey(url = ''): string {
+  const filename = url.split('/').pop() ?? ''
+  return filename.split('.')[0] ?? ''
+}
+
+async function getWbiMixinKey(): Promise<string> {
+  if (cachedWbi && cachedWbi.expiresAt > Date.now())
+    return cachedWbi.key
+
+  const nav = await getJson<NavData>(`${API}/x/web-interface/nav`)
+  const rawKey = `${filenameKey(nav.wbi_img?.img_url)}${filenameKey(nav.wbi_img?.sub_url)}`
+  const key = WBI_MIXIN_KEY_ENC_TAB.map(index => rawKey[index] ?? '').join('').slice(0, 32)
+  if (!key)
+    throw new Error('Bilibili WBI key unavailable')
+
+  cachedWbi = { key, expiresAt: Date.now() + 6 * 60 * 60 * 1000 }
+  return key
+}
+
+async function makeWbiQuery(values: Record<string, string>): Promise<string> {
+  const mixinKey = await getWbiMixinKey()
+  const params = { ...values, wts: String(Math.floor(Date.now() / 1000)) }
+  const query = Object.entries(params)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => {
+      const filtered = value.replace(/[!'()*]/g, '')
+      return `${encodeURIComponent(key)}=${encodeURIComponent(filtered)}`
+    })
+    .join('&')
+  return `${query}&w_rid=${md5(query + mixinKey)}`
+}
+
 async function getUser(): Promise<BiliUser | null> {
   const data = await getJson<NavData>(`${API}/x/web-interface/nav`)
   if (!data.isLogin)
@@ -480,24 +668,37 @@ async function getFeed(page = 1): Promise<BiliVideo[]> {
   return getPopular(page)
 }
 
-async function getFollowing(mid: number, page = 1): Promise<BiliFollowing[]> {
+async function getFollowingPage(mid: number, page: number): Promise<FollowingData> {
   const params = new URLSearchParams({
     vmid: String(mid),
     pn: String(page),
-    ps: '20',
+    ps: '50',
     order: 'desc',
     order_type: 'attention',
   })
-  const data = await getJson<{ list?: Array<{ mid: number; uname: string; face: string; sign?: string }> }>(
-    `${API}/x/relation/followings?${params}`,
-  )
+  return getJson<FollowingData>(`${API}/x/relation/followings?${params}`)
+}
 
-  return (data.list ?? []).map(item => ({
-    mid: item.mid,
-    uname: item.uname,
-    face: normalizeImage(item.face),
-    sign: item.sign,
-  }))
+async function getFollowing(mid: number, page = 1): Promise<BiliFollowing[]> {
+  const first = await getFollowingPage(mid, page)
+  const collected = [...(first.list ?? [])]
+  if (page !== 1)
+    return collected.map(normalizeFollowing)
+
+  const total = first.total ?? collected.length
+  const totalPages = Math.min(100, Math.ceil(total / 50))
+  for (let nextPage = 2; nextPage <= totalPages; nextPage += 1) {
+    const next = await getFollowingPage(mid, nextPage)
+    const entries = next.list ?? []
+    if (!entries.length)
+      break
+    collected.push(...entries)
+  }
+
+  const unique = new Map<number, FollowingRawItem>()
+  for (const item of collected)
+    unique.set(item.mid, item)
+  return [...unique.values()].map(normalizeFollowing)
 }
 
 async function getDynamicFeed(
@@ -528,6 +729,48 @@ async function getDynamicFeed(
     items,
     offset: data.offset ?? '',
     hasMore: Boolean(data.has_more && data.offset),
+  }
+}
+
+async function requestChannelArchive(mid: number, page: number): Promise<ChannelArchiveData> {
+  const values = {
+    mid: String(mid),
+    pn: String(page),
+    ps: '30',
+    order: 'pubdate',
+    order_avoided: 'true',
+    platform: 'web',
+    web_location: '1550101',
+  }
+
+  try {
+    const query = await makeWbiQuery(values)
+    return await getJson<ChannelArchiveData>(`${API}/x/space/wbi/arc/search?${query}`)
+  }
+  catch (error) {
+    console.debug('[BiliYouTube] WBI channel archive request failed, trying legacy endpoint', error)
+    const params = new URLSearchParams({
+      mid: String(mid),
+      pn: String(page),
+      ps: '30',
+      order: 'pubdate',
+    })
+    return getJson<ChannelArchiveData>(`${API}/x/space/arc/search?${params}`)
+  }
+}
+
+async function getChannelVideos(mid: number, page = 1): Promise<BiliChannelVideoPage> {
+  const data = await requestChannelArchive(mid, page)
+  const items = (data.list?.vlist ?? [])
+    .map(normalizeChannelVideo)
+    .filter((item): item is BiliChannelVideo => Boolean(item))
+  const pageSize = data.page?.ps ?? 30
+  const total = data.page?.count ?? items.length
+  return {
+    items,
+    page,
+    total,
+    hasMore: page * pageSize < total && items.length > 0,
   }
 }
 
@@ -708,6 +951,8 @@ export default defineBackground(() => {
           return { ok: true, data: await getFollowing(message.mid, message.page ?? 1) }
         case 'dynamicFeed':
           return { ok: true, data: await getDynamicFeed(message.mid, message.filter, message.offset) }
+        case 'channelVideos':
+          return { ok: true, data: await getChannelVideos(message.mid, message.page ?? 1) }
         case 'history':
           return { ok: true, data: await getHistory(message.filter, message.cursor) }
         case 'historyState':

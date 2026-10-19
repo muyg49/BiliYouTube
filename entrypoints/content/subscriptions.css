@@ -1,0 +1,333 @@
+.subscriptions .section-heading-link.byt-bridge-active,
+.subscriptions .channel-item.byt-bridge-active {
+  background: var(--surface-2);
+  font-weight: 600;
+}
+
+.byt-subscriptions-page {
+  width: min(1380px, calc(100% - 48px));
+}
+
+.byt-subscriptions-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 4px 0 26px;
+}
+
+.byt-subscriptions-toolbar h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 30px;
+}
+
+.byt-all-subscriptions-button {
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 18px;
+  color: var(--byt-nav-text);
+  background: var(--byt-nav-surface);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.byt-all-subscriptions-button:hover,
+.byt-all-subscriptions-button.active {
+  background: var(--byt-nav-surface-hover);
+}
+
+.byt-all-subscriptions-panel[hidden],
+.byt-channel-video-grid[hidden],
+.byt-channel-dynamic-feed[hidden] {
+  display: none !important;
+}
+
+.byt-all-subscriptions-panel {
+  margin: -8px 0 30px;
+  padding: 18px;
+  border-radius: 12px;
+  background: var(--byt-nav-surface);
+}
+
+.byt-all-subscriptions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.byt-all-subscription {
+  min-width: 0;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  color: var(--byt-nav-text);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.byt-all-subscription:hover {
+  background: var(--byt-nav-surface-hover);
+}
+
+.byt-all-subscription-avatar {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--byt-nav-bg);
+}
+
+.byt-all-subscription-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.byt-all-subscription > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.byt-subscriptions-video-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 38px;
+}
+
+.byt-subscription-video-card,
+.byt-channel-video-card {
+  min-width: 0;
+}
+
+.byt-subscription-thumb,
+.byt-channel-video-thumb {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #222;
+}
+
+.byt-subscription-thumb img,
+.byt-channel-video-thumb img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transition: border-radius 120ms ease;
+}
+
+.byt-subscription-thumb:hover,
+.byt-channel-video-thumb:hover {
+  border-radius: 0;
+}
+
+.byt-subscription-meta {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr);
+  gap: 10px;
+  padding-top: 11px;
+}
+
+.byt-subscription-author {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: var(--byt-nav-text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.byt-subscription-avatar {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--byt-nav-surface);
+}
+
+.byt-subscription-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.byt-subscription-copy,
+.byt-channel-video-copy {
+  min-width: 0;
+}
+
+.byt-subscription-title,
+.byt-channel-video-title {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--byt-nav-text);
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 21px;
+  text-decoration: none;
+}
+
+.byt-subscription-channel {
+  max-width: 100%;
+  overflow: hidden;
+  margin: 5px 0 0;
+  padding: 0;
+  border: 0;
+  color: var(--byt-nav-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byt-subscription-channel:hover {
+  color: var(--byt-nav-text);
+}
+
+.byt-subscription-stats,
+.byt-channel-video-meta {
+  overflow: hidden;
+  color: var(--byt-nav-muted);
+  font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byt-channel-page {
+  width: min(1380px, calc(100% - 48px));
+}
+
+.byt-channel-hero {
+  min-height: 180px;
+  gap: 28px;
+  padding: 26px 8px 30px;
+}
+
+.byt-channel-avatar {
+  width: 128px;
+  height: 128px;
+}
+
+.byt-channel-copy h1 {
+  font-size: 34px;
+  line-height: 42px;
+}
+
+.byt-channel-copy p {
+  font-size: 14px;
+}
+
+.byt-channel-tabs {
+  margin-bottom: 26px;
+}
+
+.byt-channel-video-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 16px;
+  row-gap: 34px;
+}
+
+.byt-channel-video-copy {
+  padding-top: 10px;
+}
+
+.byt-channel-video-title {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.byt-channel-video-meta {
+  margin-top: 5px;
+}
+
+.byt-channel-dynamic-feed {
+  width: min(820px, 100%);
+}
+
+@media (max-width: 1500px) {
+  .byt-subscriptions-video-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .byt-channel-video-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .byt-all-subscriptions-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1100px) {
+  .byt-subscriptions-video-grid,
+  .byt-channel-video-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .byt-all-subscriptions-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .byt-subscriptions-page,
+  .byt-channel-page {
+    width: calc(100% - 24px);
+  }
+
+  .byt-subscriptions-video-grid,
+  .byt-channel-video-grid {
+    grid-template-columns: 1fr;
+    row-gap: 28px;
+  }
+
+  .byt-all-subscriptions-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .byt-channel-hero {
+    min-height: 130px;
+    gap: 16px;
+    padding-top: 12px;
+  }
+
+  .byt-channel-avatar {
+    width: 82px;
+    height: 82px;
+  }
+
+  .byt-channel-copy h1 {
+    font-size: 25px;
+    line-height: 32px;
+  }
+}
