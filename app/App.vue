@@ -3,6 +3,10 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { callApi } from '../lib/api'
 import type {
+  BiliFavoriteFolder,
+  BiliFavoriteItem,
+  BiliFavoritePage,
+  BiliFavoriteSort,
   BiliFollowing,
   BiliHistoryCursor,
   BiliHistoryFilter,
@@ -10,9 +14,11 @@ import type {
   BiliHistoryPage,
   BiliUser,
   BiliVideo,
+  BiliWatchLaterItem,
+  BiliWatchLaterPage,
 } from '../types/bilibili'
 
-type AppView = 'home' | 'history'
+type AppView = 'home' | 'history' | 'favorites' | 'watch-later'
 
 const user = ref<BiliUser | null>(null)
 const following = ref<BiliFollowing[]>([])
@@ -37,6 +43,28 @@ const historyPaused = ref(false)
 const historyManageMode = ref(false)
 const historyActionBusy = ref(false)
 
+const favoriteFolders = ref<BiliFavoriteFolder[]>([])
+const favoriteFoldersLoading = ref(false)
+const favoriteSelectedId = ref(favoriteFolderIdFromLocation())
+const favoriteSelectedFolder = ref<BiliFavoriteFolder | null>(null)
+const favoriteItems = ref<BiliFavoriteItem[]>([])
+const favoritePage = ref(1)
+const favoriteHasMore = ref(false)
+const favoriteLoading = ref(false)
+const favoriteLoadingMore = ref(false)
+const favoriteError = ref('')
+const favoriteSort = ref<BiliFavoriteSort>('mtime')
+const favoriteSearch = ref('')
+const favoriteSearchDraft = ref('')
+const favoriteActionBusy = ref(false)
+
+const watchLaterItems = ref<BiliWatchLaterItem[]>([])
+const watchLaterCount = ref(0)
+const watchLaterLoading = ref(false)
+const watchLaterError = ref('')
+const watchLaterSearch = ref('')
+const watchLaterActionBusy = ref(false)
+
 const searchKeyword = ref('')
 const contentRef = ref<HTMLElement | null>(null)
 const activeView = ref<AppView>(viewFromLocation())
@@ -48,12 +76,16 @@ const historyFilters: Array<{ key: BiliHistoryFilter; label: string }> = [
   { key: 'live', label: '直播' },
   { key: 'article', label: '专栏' },
 ]
-
-const libraryItems = computed(() => [
-  { label: '历史记录', icon: 'history', view: 'history' as const },
-  { label: '收藏', icon: 'favorite', href: user.value ? `https://space.bilibili.com/${user.value.mid}/favlist` : 'https://www.bilibili.com/account/favlist' },
-  { label: '稍后再看', icon: 'later', href: 'https://www.bilibili.com/watchlater/list' },
-])
+const favoriteSortOptions: Array<{ key: BiliFavoriteSort; label: string }> = [
+  { key: 'mtime', label: '最近收藏' },
+  { key: 'pubtime', label: '最新发布' },
+  { key: 'view', label: '最多播放' },
+]
+const libraryItems: Array<{ label: string; icon: string; view: AppView }> = [
+  { label: '历史记录', icon: 'history', view: 'history' },
+  { label: '播放列表', icon: 'favorite', view: 'favorites' },
+  { label: '稍后再看', icon: 'later', view: 'watch-later' },
+]
 
 const visibleFollowing = computed(() => subscriptionsExpanded.value ? following.value : following.value.slice(0, 7))
 const canToggleFollowing = computed(() => following.value.length > 7)
@@ -85,27 +117,103 @@ const historyGroups = computed(() => {
   return groups
 })
 
+const favoriteSummaryCover = computed(() => favoriteSelectedFolder.value?.cover || favoriteItems.value[0]?.cover || '')
+const filteredWatchLater = computed(() => {
+  const keyword = watchLaterSearch.value.trim().toLocaleLowerCase()
+  if (!keyword)
+    return watchLaterItems.value
+  return watchLaterItems.value.filter(item => item.title.toLocaleLowerCase().includes(keyword)
+    || item.owner.name.toLocaleLowerCase().includes(keyword))
+})
+const watchLaterSummaryCover = computed(() => watchLaterItems.value[0]?.pic || '')
+
 function viewFromLocation(): AppView {
-  return location.hash === '#biliyoutube/history' ? 'history' : 'home'
+  const hash = location.hash
+  if (hash === '#biliyoutube/history')
+    return 'history'
+  if (hash.startsWith('#biliyoutube/favorites'))
+    return 'favorites'
+  if (hash === '#biliyoutube/watch-later')
+    return 'watch-later'
+  return 'home'
+}
+
+function favoriteFolderIdFromLocation(): number {
+  const match = location.hash.match(/^#biliyoutube\/favorites\/(\d+)$/)
+  return match ? Number(match[1]) : 0
+}
+
+function hashForView(view: AppView): string {
+  if (view === 'history')
+    return 'biliyoutube/history'
+  if (view === 'favorites')
+    return 'biliyoutube/favorites'
+  if (view === 'watch-later')
+    return 'biliyoutube/watch-later'
+  return ''
 }
 
 function navigate(view: AppView) {
   const next = new URL(location.href)
-  next.hash = view === 'history' ? 'biliyoutube/history' : ''
-  history.pushState({ biliyoutubeView: view }, '', `${next.pathname}${next.search}${next.hash}`)
+  next.hash = hashForView(view)
+  window.history.pushState({ biliyoutubeView: view }, '', `${next.pathname}${next.search}${next.hash}`)
   activeView.value = view
+  if (view === 'favorites') {
+    favoriteSelectedId.value = 0
+    favoriteSelectedFolder.value = null
+    favoriteItems.value = []
+  }
   contentRef.value?.scrollTo({ top: 0 })
-  if (view === 'history' && !historyItems.value.length && !historyLoading.value)
-    void loadHistory(true)
-  if (view === 'home' && !videos.value.length && !homeLoading.value)
-    void loadHome(true)
+  void ensureViewLoaded(view)
+}
+
+function openFavoriteFolder(folder: BiliFavoriteFolder) {
+  const next = new URL(location.href)
+  next.hash = `biliyoutube/favorites/${folder.id}`
+  window.history.pushState({ biliyoutubeView: 'favorites', favoriteId: folder.id }, '', `${next.pathname}${next.search}${next.hash}`)
+  activeView.value = 'favorites'
+  favoriteSelectedId.value = folder.id
+  favoriteSelectedFolder.value = folder
+  favoriteSearch.value = ''
+  favoriteSearchDraft.value = ''
+  favoriteSort.value = 'mtime'
+  contentRef.value?.scrollTo({ top: 0 })
+  void loadFavoritePage(true)
 }
 
 function handlePopState() {
   activeView.value = viewFromLocation()
+  favoriteSelectedId.value = favoriteFolderIdFromLocation()
+  if (!favoriteSelectedId.value) {
+    favoriteSelectedFolder.value = null
+    favoriteItems.value = []
+  }
   contentRef.value?.scrollTo({ top: 0 })
-  if (activeView.value === 'history' && !historyItems.value.length)
-    void loadHistory(true)
+  void ensureViewLoaded(activeView.value)
+}
+
+async function ensureViewLoaded(view: AppView) {
+  if (view === 'home') {
+    if (!videos.value.length && !homeLoading.value)
+      await loadHome(true)
+    return
+  }
+  if (view === 'history') {
+    if (!historyItems.value.length && !historyLoading.value)
+      await loadHistory(true)
+    return
+  }
+  if (view === 'favorites') {
+    if (!user.value)
+      return
+    if (!favoriteFolders.value.length)
+      await loadFavoriteFolders()
+    if (favoriteSelectedId.value)
+      await loadFavoritePage(true)
+    return
+  }
+  if (!watchLaterItems.value.length && !watchLaterLoading.value)
+    await loadWatchLater()
 }
 
 function iconPath(icon: string): string {
@@ -114,7 +222,7 @@ function iconPath(icon: string): string {
     home: 'M3 11.5 12 4l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z',
     dynamic: 'M4 6h16v12H4zM8 10h8M8 14h5',
     history: 'M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2',
-    favorite: 'm12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.8 6.4 21l1.1-6.2L3 9.6l6.2-.9z',
+    favorite: 'M4 5h16v14H4zM8 9h8M8 13h5',
     later: 'M12 7v5l3 2M4 3h16v18H4z',
     search: 'm21 21-4.4-4.4m2.4-5.1a7.5 7.5 0 1 1-15 0 7.5 7.5 0 0 1 15 0Z',
     upload: 'M12 16V4m0 0L7 9m5-5 5 5M5 20h14',
@@ -122,11 +230,15 @@ function iconPath(icon: string): string {
     chevronDown: 'm6 9 6 6 6-6',
     chevronUp: 'm6 15 6-6 6 6',
     chevronRight: 'm9 6 6 6-6 6',
+    arrowLeft: 'm15 18-6-6 6-6',
     trash: 'M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5m4-5v5',
     pause: 'M8 5v14M16 5v14',
     play: 'm8 5 11 7-11 7z',
     settings: 'M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Zm8 3 2-1-2-3-2 .3-1.2-2.1.8-1.9-3-1-1.3 1.8L12 2 10.7.3l-3 1 .8 1.9L7.3 5.3 5 5 3 8l2 1v3l-2 1 2 3 2.3-.3 1.2 2.1-.8 1.9 3 1L12 19l1.3 1.7 3-1-.8-1.9 1.2-2.1 2.3.3 2-3-2-1Z',
     close: 'M6 6l12 12M18 6 6 18',
+    lock: 'M7 10V7a5 5 0 0 1 10 0v3M5 10h14v11H5z',
+    playlist: 'M4 6h12M4 11h12M4 16h8m7-4v7m-3-3h6',
+    check: 'm5 12 4 4L19 6',
   }
   return paths[icon] ?? paths.home!
 }
@@ -207,6 +319,12 @@ function historyProgress(item: BiliHistoryItem): number {
     return 0
   if (item.progress < 0)
     return 100
+  return Math.max(0, Math.min(100, item.progress / item.duration * 100))
+}
+
+function watchProgress(item: BiliWatchLaterItem): number {
+  if (!item.duration || item.progress <= 0)
+    return 0
   return Math.max(0, Math.min(100, item.progress / item.duration * 100))
 }
 
@@ -423,6 +541,211 @@ async function removeHistoryItem(item: BiliHistoryItem) {
   }
 }
 
+async function loadFavoriteFolders() {
+  if (favoriteFoldersLoading.value || !user.value)
+    return
+  favoriteFoldersLoading.value = true
+  favoriteError.value = ''
+  try {
+    favoriteFolders.value = await callApi<BiliFavoriteFolder[]>({ type: 'favoriteFolders', mid: user.value.mid })
+    if (favoriteSelectedId.value && !favoriteSelectedFolder.value)
+      favoriteSelectedFolder.value = favoriteFolders.value.find(folder => folder.id === favoriteSelectedId.value) ?? null
+  }
+  catch (error) {
+    favoriteError.value = error instanceof Error ? error.message : String(error)
+  }
+  finally {
+    favoriteFoldersLoading.value = false
+  }
+}
+
+async function loadFavoritePage(reset = false) {
+  if (!favoriteSelectedId.value || favoriteLoading.value || favoriteLoadingMore.value)
+    return
+
+  if (reset) {
+    favoriteLoading.value = true
+    favoriteError.value = ''
+    favoritePage.value = 1
+  }
+  else {
+    if (!favoriteHasMore.value)
+      return
+    favoriteLoadingMore.value = true
+  }
+
+  try {
+    const pageNumber = reset ? 1 : favoritePage.value + 1
+    const page = await callApi<BiliFavoritePage>({
+      type: 'favoritePage',
+      mediaId: favoriteSelectedId.value,
+      page: pageNumber,
+      sort: favoriteSort.value,
+      keyword: favoriteSearch.value,
+    })
+    if (page.folder)
+      favoriteSelectedFolder.value = page.folder
+    if (reset)
+      favoriteItems.value = page.items
+    else {
+      const known = new Set(favoriteItems.value.map(item => `${item.type}:${item.id}`))
+      favoriteItems.value.push(...page.items.filter(item => !known.has(`${item.type}:${item.id}`)))
+    }
+    favoritePage.value = page.page
+    favoriteHasMore.value = page.hasMore
+  }
+  catch (error) {
+    favoriteError.value = error instanceof Error ? error.message : String(error)
+    if (reset)
+      favoriteItems.value = []
+  }
+  finally {
+    favoriteLoading.value = false
+    favoriteLoadingMore.value = false
+  }
+}
+
+function setFavoriteSort(sort: BiliFavoriteSort) {
+  if (favoriteSort.value === sort)
+    return
+  favoriteSort.value = sort
+  void loadFavoritePage(true)
+}
+
+function submitFavoriteSearch() {
+  const next = favoriteSearchDraft.value.trim()
+  if (favoriteSearch.value === next)
+    return
+  favoriteSearch.value = next
+  void loadFavoritePage(true)
+}
+
+async function removeFavoriteItem(item: BiliFavoriteItem) {
+  if (favoriteActionBusy.value || !favoriteSelectedId.value)
+    return
+  const csrf = getCsrfToken()
+  if (!csrf) {
+    favoriteError.value = '无法读取 Bilibili CSRF Token，请确认已登录后刷新页面。'
+    return
+  }
+
+  favoriteActionBusy.value = true
+  favoriteError.value = ''
+  try {
+    await callApi<null>({
+      type: 'favoriteDelete',
+      mediaId: favoriteSelectedId.value,
+      resourceId: item.id,
+      resourceType: item.type,
+      csrf,
+    })
+    favoriteItems.value = favoriteItems.value.filter(entry => !(entry.id === item.id && entry.type === item.type))
+    if (favoriteSelectedFolder.value)
+      favoriteSelectedFolder.value.mediaCount = Math.max(0, favoriteSelectedFolder.value.mediaCount - 1)
+    const folder = favoriteFolders.value.find(entry => entry.id === favoriteSelectedId.value)
+    if (folder)
+      folder.mediaCount = Math.max(0, folder.mediaCount - 1)
+  }
+  catch (error) {
+    favoriteError.value = error instanceof Error ? error.message : String(error)
+  }
+  finally {
+    favoriteActionBusy.value = false
+  }
+}
+
+async function loadWatchLater() {
+  if (watchLaterLoading.value)
+    return
+  watchLaterLoading.value = true
+  watchLaterError.value = ''
+  try {
+    const page = await callApi<BiliWatchLaterPage>({ type: 'watchLater' })
+    watchLaterCount.value = page.count
+    watchLaterItems.value = page.items
+  }
+  catch (error) {
+    watchLaterError.value = error instanceof Error ? error.message : String(error)
+    watchLaterItems.value = []
+  }
+  finally {
+    watchLaterLoading.value = false
+  }
+}
+
+async function removeWatchLaterItem(item: BiliWatchLaterItem) {
+  if (watchLaterActionBusy.value)
+    return
+  const csrf = getCsrfToken()
+  if (!csrf) {
+    watchLaterError.value = '无法读取 Bilibili CSRF Token，请确认已登录后刷新页面。'
+    return
+  }
+
+  watchLaterActionBusy.value = true
+  watchLaterError.value = ''
+  try {
+    await callApi<null>({ type: 'watchLaterDelete', aid: item.aid, csrf })
+    watchLaterItems.value = watchLaterItems.value.filter(entry => entry.aid !== item.aid)
+    watchLaterCount.value = Math.max(0, watchLaterCount.value - 1)
+  }
+  catch (error) {
+    watchLaterError.value = error instanceof Error ? error.message : String(error)
+  }
+  finally {
+    watchLaterActionBusy.value = false
+  }
+}
+
+async function removeViewedWatchLater() {
+  if (watchLaterActionBusy.value || !watchLaterItems.value.some(item => item.progress > 0))
+    return
+  const csrf = getCsrfToken()
+  if (!csrf) {
+    watchLaterError.value = '无法读取 Bilibili CSRF Token，请确认已登录后刷新页面。'
+    return
+  }
+
+  watchLaterActionBusy.value = true
+  watchLaterError.value = ''
+  try {
+    await callApi<null>({ type: 'watchLaterDeleteViewed', csrf })
+    await loadWatchLater()
+  }
+  catch (error) {
+    watchLaterError.value = error instanceof Error ? error.message : String(error)
+  }
+  finally {
+    watchLaterActionBusy.value = false
+  }
+}
+
+async function clearWatchLater() {
+  if (watchLaterActionBusy.value || !watchLaterItems.value.length)
+    return
+  if (!window.confirm('确定要清空全部稍后再看视频吗？此操作无法撤销。'))
+    return
+  const csrf = getCsrfToken()
+  if (!csrf) {
+    watchLaterError.value = '无法读取 Bilibili CSRF Token，请确认已登录后刷新页面。'
+    return
+  }
+
+  watchLaterActionBusy.value = true
+  watchLaterError.value = ''
+  try {
+    await callApi<null>({ type: 'watchLaterClear', csrf })
+    watchLaterItems.value = []
+    watchLaterCount.value = 0
+  }
+  catch (error) {
+    watchLaterError.value = error instanceof Error ? error.message : String(error)
+  }
+  finally {
+    watchLaterActionBusy.value = false
+  }
+}
+
 function handleScroll(event: Event) {
   const el = event.currentTarget as HTMLElement
   if (el.scrollHeight - el.scrollTop - el.clientHeight >= 900)
@@ -430,16 +753,19 @@ function handleScroll(event: Event) {
 
   if (activeView.value === 'history')
     void loadHistory(false)
-  else
+  else if (activeView.value === 'favorites' && favoriteSelectedId.value)
+    void loadFavoritePage(false)
+  else if (activeView.value === 'home')
     void loadMoreHome()
 }
 
 onMounted(() => {
   window.addEventListener('popstate', handlePopState)
-  void loadShell()
-  if (activeView.value === 'history')
-    void loadHistory(true)
-  else
+  void (async () => {
+    await loadShell()
+    await ensureViewLoaded(activeView.value)
+  })()
+  if (activeView.value === 'home')
     void loadHome(true)
 })
 
@@ -521,25 +847,28 @@ onBeforeUnmount(() => {
           <h2>你</h2>
           <svg viewBox="0 0 24 24"><path :d="iconPath('chevronRight')" /></svg>
         </div>
-        <template v-for="item in libraryItems" :key="item.label">
-          <button
-            v-if="item.view"
-            class="sidebar-item sidebar-button"
-            :class="{ active: activeView === item.view }"
-            @click="navigate(item.view)"
-          >
-            <svg viewBox="0 0 24 24"><path :d="iconPath(item.icon)" /></svg>
-            <span>{{ item.label }}</span>
-          </button>
-          <a v-else class="sidebar-item" :href="item.href">
-            <svg viewBox="0 0 24 24"><path :d="iconPath(item.icon)" /></svg>
-            <span>{{ item.label }}</span>
-          </a>
-        </template>
+        <button
+          v-for="item in libraryItems"
+          :key="item.label"
+          class="sidebar-item sidebar-button"
+          :class="{ active: activeView === item.view }"
+          @click="navigate(item.view)"
+        >
+          <svg viewBox="0 0 24 24"><path :d="iconPath(item.icon)" /></svg>
+          <span>{{ item.label }}</span>
+        </button>
       </section>
     </aside>
 
-    <main ref="contentRef" class="main-area" :class="{ 'history-main': activeView === 'history' }" @scroll.passive="handleScroll">
+    <main
+      ref="contentRef"
+      class="main-area"
+      :class="{
+        'history-main': activeView === 'history',
+        'library-main': activeView === 'favorites' || activeView === 'watch-later',
+      }"
+      @scroll.passive="handleScroll"
+    >
       <template v-if="activeView === 'home'">
         <div class="chipbar">
           <button v-for="chip in chips" :key="chip" class="chip" :class="{ active: chip === '全部' }" @click="searchChip(chip)">
@@ -588,7 +917,7 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <template v-else>
+      <template v-else-if="activeView === 'history'">
         <div class="history-layout">
           <section class="history-content" aria-label="观看记录">
             <header class="history-header">
@@ -688,6 +1017,225 @@ onBeforeUnmount(() => {
             </button>
           </aside>
         </div>
+      </template>
+
+      <template v-else-if="activeView === 'favorites'">
+        <section v-if="!favoriteSelectedId" class="library-page">
+          <header class="library-page-header">
+            <h1>播放列表</h1>
+          </header>
+
+          <div v-if="favoriteError" class="history-inline-error library-error">
+            <span>{{ favoriteError }}</span>
+            <button aria-label="关闭" @click="favoriteError = ''">
+              <svg viewBox="0 0 24 24"><path :d="iconPath('close')" /></svg>
+            </button>
+          </div>
+
+          <div v-if="favoriteFoldersLoading || shellLoading" class="library-loading">
+            <div class="spinner" />
+          </div>
+          <div v-else-if="!user" class="library-empty">
+            <h2>登录后即可查看播放列表</h2>
+            <p>你的 Bilibili 收藏夹会在这里以 YouTube 风格展示。</p>
+            <a class="login-button" href="https://passport.bilibili.com/login">登录</a>
+          </div>
+          <div v-else-if="!favoriteFolders.length" class="library-empty">
+            <h2>暂无播放列表</h2>
+            <p>在 Bilibili 收藏视频后，收藏夹会显示在这里。</p>
+          </div>
+          <div v-else class="playlist-grid">
+            <button v-for="folder in favoriteFolders" :key="folder.id" class="playlist-card" @click="openFavoriteFolder(folder)">
+              <div class="playlist-card-cover">
+                <img v-if="folder.cover" :src="folder.cover" :alt="folder.title" loading="lazy">
+                <div v-else class="playlist-placeholder">
+                  <svg viewBox="0 0 24 24"><path :d="iconPath('playlist')" /></svg>
+                </div>
+                <span class="playlist-count">{{ folder.mediaCount }} 个视频</span>
+              </div>
+              <h2>{{ folder.title }}</h2>
+              <p>{{ folder.isPrivate ? '私密' : '公开' }} · 查看完整播放列表</p>
+            </button>
+          </div>
+        </section>
+
+        <section v-else class="playlist-detail-layout">
+          <aside class="playlist-summary">
+            <button class="playlist-back" @click="navigate('favorites')">
+              <svg viewBox="0 0 24 24"><path :d="iconPath('arrowLeft')" /></svg>
+              <span>播放列表</span>
+            </button>
+            <div class="playlist-summary-cover">
+              <img v-if="favoriteSummaryCover" :src="favoriteSummaryCover" :alt="favoriteSelectedFolder?.title || '播放列表'">
+              <div v-else class="playlist-placeholder large">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('playlist')" /></svg>
+              </div>
+            </div>
+            <h1>{{ favoriteSelectedFolder?.title || '播放列表' }}</h1>
+            <a v-if="user" class="playlist-owner" :href="`https://space.bilibili.com/${user.mid}`">{{ user.name }}</a>
+            <p class="playlist-summary-meta">
+              {{ favoriteSelectedFolder?.mediaCount ?? favoriteItems.length }} 个视频
+              <span v-if="favoriteSelectedFolder?.isPrivate"> · 私密</span>
+            </p>
+            <p v-if="favoriteSelectedFolder?.intro" class="playlist-description">{{ favoriteSelectedFolder.intro }}</p>
+            <a v-if="favoriteItems.length" class="playlist-play-all" :href="favoriteItems[0]?.url">
+              <svg viewBox="0 0 24 24"><path :d="iconPath('play')" /></svg>
+              <span>播放全部</span>
+            </a>
+          </aside>
+
+          <div class="playlist-list-panel">
+            <div v-if="favoriteError" class="history-inline-error library-error">
+              <span>{{ favoriteError }}</span>
+              <button aria-label="关闭" @click="favoriteError = ''">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('close')" /></svg>
+              </button>
+            </div>
+
+            <div class="playlist-toolbar">
+              <form class="library-search" @submit.prevent="submitFavoriteSearch">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('search')" /></svg>
+                <input v-model="favoriteSearchDraft" type="search" placeholder="搜索播放列表">
+              </form>
+              <div class="playlist-sort-row">
+                <button
+                  v-for="option in favoriteSortOptions"
+                  :key="option.key"
+                  class="chip"
+                  :class="{ active: favoriteSort === option.key }"
+                  @click="setFavoriteSort(option.key)"
+                >
+                  {{ option.label }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="favoriteLoading" class="library-loading compact">
+              <div class="spinner" />
+            </div>
+            <div v-else-if="!favoriteItems.length" class="library-empty compact">
+              <h2>{{ favoriteSearch ? '没有匹配的视频' : '这个播放列表是空的' }}</h2>
+            </div>
+            <div v-else class="playlist-video-list">
+              <article v-for="(item, index) in favoriteItems" :key="`${item.type}:${item.id}`" class="playlist-video-row" :class="{ invalid: item.invalid }">
+                <span class="playlist-index">{{ index + 1 }}</span>
+                <a class="playlist-video-thumb" :href="item.url">
+                  <img v-if="item.cover" :src="item.cover" :alt="item.title" loading="lazy">
+                  <span v-if="item.duration" class="duration">{{ formatDuration(item.duration) }}</span>
+                </a>
+                <div class="playlist-video-copy">
+                  <a class="playlist-video-title" :href="item.url">{{ item.title }}</a>
+                  <div class="playlist-video-meta">
+                    <a v-if="item.authorMid" :href="`https://space.bilibili.com/${item.authorMid}`">{{ item.authorName }}</a>
+                    <span v-else>{{ item.authorName }}</span>
+                    <span v-if="item.view"> · {{ formatViews(item.view) }}</span>
+                  </div>
+                  <div v-if="item.favoriteAt" class="playlist-video-added">{{ relativeTime(item.favoriteAt) }}收藏</div>
+                </div>
+                <button
+                  class="row-action-button"
+                  :disabled="favoriteActionBusy"
+                  aria-label="从播放列表中移除"
+                  title="从播放列表中移除"
+                  @click="removeFavoriteItem(item)"
+                >
+                  <svg viewBox="0 0 24 24"><path :d="iconPath('trash')" /></svg>
+                </button>
+              </article>
+            </div>
+            <div v-if="favoriteLoadingMore" class="loading-more">
+              <div class="spinner small" />
+            </div>
+          </div>
+        </section>
+      </template>
+
+      <template v-else>
+        <section class="playlist-detail-layout watch-later-layout">
+          <aside class="playlist-summary watch-later-summary">
+            <div class="playlist-summary-cover">
+              <img v-if="watchLaterSummaryCover" :src="watchLaterSummaryCover" alt="稍后再看">
+              <div v-else class="playlist-placeholder large">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('later')" /></svg>
+              </div>
+            </div>
+            <h1>稍后再看</h1>
+            <a v-if="user" class="playlist-owner" :href="`https://space.bilibili.com/${user.mid}`">{{ user.name }}</a>
+            <p class="playlist-summary-meta">{{ watchLaterCount }} 个视频 · 私密</p>
+            <a v-if="watchLaterItems.length" class="playlist-play-all" :href="watchLaterItems[0]?.url">
+              <svg viewBox="0 0 24 24"><path :d="iconPath('play')" /></svg>
+              <span>播放全部</span>
+            </a>
+          </aside>
+
+          <div class="playlist-list-panel">
+            <div v-if="watchLaterError" class="history-inline-error library-error">
+              <span>{{ watchLaterError }}</span>
+              <button aria-label="关闭" @click="watchLaterError = ''">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('close')" /></svg>
+              </button>
+            </div>
+
+            <div class="watch-later-toolbar">
+              <label class="library-search">
+                <svg viewBox="0 0 24 24"><path :d="iconPath('search')" /></svg>
+                <input v-model="watchLaterSearch" type="search" placeholder="搜索稍后再看">
+              </label>
+              <div class="watch-later-actions">
+                <button :disabled="watchLaterActionBusy || !watchLaterItems.some(item => item.progress > 0)" @click="removeViewedWatchLater">
+                  <svg viewBox="0 0 24 24"><path :d="iconPath('check')" /></svg>
+                  <span>移除已看视频</span>
+                </button>
+                <button :disabled="watchLaterActionBusy || !watchLaterItems.length" @click="clearWatchLater">
+                  <svg viewBox="0 0 24 24"><path :d="iconPath('trash')" /></svg>
+                  <span>清空</span>
+                </button>
+              </div>
+            </div>
+
+            <div v-if="watchLaterLoading || shellLoading" class="library-loading compact">
+              <div class="spinner" />
+            </div>
+            <div v-else-if="!user" class="library-empty compact">
+              <h2>登录后即可查看稍后再看</h2>
+              <a class="login-button" href="https://passport.bilibili.com/login">登录</a>
+            </div>
+            <div v-else-if="!filteredWatchLater.length" class="library-empty compact">
+              <h2>{{ watchLaterSearch ? '没有匹配的视频' : '稍后再看是空的' }}</h2>
+            </div>
+            <div v-else class="playlist-video-list">
+              <article v-for="(item, index) in filteredWatchLater" :key="item.aid" class="playlist-video-row">
+                <span class="playlist-index">{{ index + 1 }}</span>
+                <a class="playlist-video-thumb" :href="item.url">
+                  <img v-if="item.pic" :src="item.pic" :alt="item.title" loading="lazy">
+                  <span v-if="item.duration" class="duration">{{ formatDuration(item.duration) }}</span>
+                  <span v-if="item.progress > 0" class="history-progress" :style="{ width: `${watchProgress(item)}%` }" />
+                </a>
+                <div class="playlist-video-copy">
+                  <a class="playlist-video-title" :href="item.url">{{ item.title }}</a>
+                  <div class="playlist-video-meta">
+                    <a v-if="item.owner.mid" :href="`https://space.bilibili.com/${item.owner.mid}`">{{ item.owner.name }}</a>
+                    <span v-else>{{ item.owner.name }}</span>
+                    <span v-if="item.view"> · {{ formatViews(item.view) }}</span>
+                  </div>
+                  <div class="playlist-video-added">
+                    <span v-if="item.addedAt">{{ relativeTime(item.addedAt) }}添加</span>
+                    <span v-if="item.progress > 0"> · 已看 {{ formatDuration(item.progress) }}</span>
+                  </div>
+                </div>
+                <button
+                  class="row-action-button"
+                  :disabled="watchLaterActionBusy"
+                  aria-label="从稍后再看中移除"
+                  title="从稍后再看中移除"
+                  @click="removeWatchLaterItem(item)"
+                >
+                  <svg viewBox="0 0 24 24"><path :d="iconPath('trash')" /></svg>
+                </button>
+              </article>
+            </div>
+          </div>
+        </section>
       </template>
     </main>
   </div>
