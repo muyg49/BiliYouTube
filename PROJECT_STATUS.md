@@ -26,6 +26,7 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Firefox `0.2.4` was submitted to AMO on 2026-10-19 after PR #8 watch-page fixes. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137942`; publish run `39205551787` succeeded.
 - Firefox `0.2.5` was submitted to AMO on 2026-10-19 after PR #9 homepage/centering cleanup and PR #10 audio-path safety fix. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5137990`; publish run `39207669577` succeeded.
 - Firefox `0.2.6` was submitted to AMO on 2026-10-19 after PR #11 internal search/persistent-speed fixes and PR #12 homepage hover-preview/action-menu work. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139744`; publish run `39268142219` succeeded.
+- Firefox `0.2.7` was submitted to AMO on 2026-10-19 with the watch-page hamburger/drawer toggle hotfix. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139772`; publish run `39269112547` succeeded.
 
 ## Implemented
 
@@ -122,6 +123,8 @@ PR #11 reinforced playback-speed persistence:
 - The stored speed is reapplied at several native-player lifecycle points and during the initial stabilization window so a late Bilibili player reset does not silently replace it with `1x` after browser startup.
 - The persistence layer shares the existing settings/storage keys and listens for storage changes, so it stays synchronized with the `BYT` playback settings panel.
 
+The post-`0.2.6` watch-page hotfix makes the top-left hamburger button a true toggle: clicking it opens the navigation drawer and clicking the same button again closes it, while backdrop/link close behavior remains intact.
+
 Watch-page DOM/audio integration remains fail-open: unrecognized native regions and unavailable enhancement APIs are left on the native path.
 
 ## Current Bilibili API layer
@@ -181,6 +184,8 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - PR #12 run `39266927285` passed TypeScript compilation, Firefox packaging and artifact upload before squash merge.
 - Main run `39267204262` passed after PR #12 and status-document updates.
 - Firefox `0.2.6` publish run `39268142219` succeeded, including AMO submission and validation with 0 errors.
+- Main run `39268879615` passed after the watch-page hamburger toggle hotfix.
+- Firefox `0.2.7` publish run `39269112547` succeeded, including AMO submission and validation with 0 errors.
 
 ## Architecture decisions
 
@@ -203,12 +208,12 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate Firefox `0.2.6` in signed-in Firefox: hover several homepage cards long enough to start previews, move rapidly between cards, scroll during/after preview, and confirm streams stop cleanly without affecting normal playback.
+1. Validate Firefox `0.2.7` in signed-in Firefox: hover several homepage cards long enough to start previews, move rapidly between cards, scroll during/after preview, and confirm streams stop cleanly without affecting normal playback.
 2. Validate the homepage three-dot menu in light/dark themes, including menu placement near viewport edges, Watch Later, save-to-playlist, copy link, session-only hide actions, click-away close and Escape close.
-3. Validate Firefox `0.2.6` with repeated pause/resume, video switching, reloads and fullscreen transitions; confirm native audio remains reliable with loudness normalization both enabled and disabled.
+3. Validate Firefox `0.2.7` with repeated pause/resume, video switching, reloads and fullscreen transitions; confirm native audio remains reliable with loudness normalization both enabled and disabled.
 4. Validate playback-speed memory across a full browser restart and confirm Bilibili's player initialization no longer resets the persisted speed to `1x`.
 5. Validate internal search and every homepage topic chip in signed-in Firefox, including back/forward, infinite loading, video links and channel links, and confirm none escape to Bilibili's native search UI.
-6. Validate the no-flash homepage boot in Firefox `0.2.6` and confirm the native Bilibili homepage no longer paints before BiliYouTube appears.
+6. Validate the no-flash homepage boot in Firefox `0.2.7` and confirm the native Bilibili homepage no longer paints before BiliYouTube appears.
 7. Verify collection resume and per-episode playback-position restore across real collection variants after removal of centering code.
 8. Continue testing watch-page controls, wide/web/browser fullscreen, toolbar actions, follow, description, comments and related-video navigation.
 9. Continue refining subscriptions/channel proportions and eliminating remaining native-page escapes.
