@@ -317,7 +317,7 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
       status.textContent = nextPage === 1 ? '正在加载…' : '正在加载更多…'
       try {
         const data = await requestSearch(trimmed, nextPage)
-        if (token !== routeToken || currentRoute?.keyword !== trimmed || currentRoute.mode !== mode)
+        if (token !== routeToken || currentRoute?.keyword !== trimmed || currentRoute?.mode !== mode)
           return
         const items = data.result ?? []
         for (const video of items) {
@@ -329,8 +329,6 @@ export function installHomepageSearch(container: HTMLElement): HomepageSearchBri
         nextPage += 1
         if (!results.childElementCount)
           status.textContent = '没有找到相关视频。'
-        else if (nextPage > totalPages || !items.length)
-          status.hidden = true
         else
           status.hidden = true
       }
