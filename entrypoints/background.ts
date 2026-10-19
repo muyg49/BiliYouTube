@@ -3,6 +3,10 @@ import { browser } from 'wxt/browser'
 import type {
   ApiRequest,
   ApiResponse,
+  BiliFavoriteFolder,
+  BiliFavoriteItem,
+  BiliFavoritePage,
+  BiliFavoriteSort,
   BiliFollowing,
   BiliHistoryCursor,
   BiliHistoryFilter,
@@ -10,6 +14,8 @@ import type {
   BiliHistoryPage,
   BiliUser,
   BiliVideo,
+  BiliWatchLaterItem,
+  BiliWatchLaterPage,
 } from '../types/bilibili'
 
 interface BiliEnvelope<T> {
@@ -76,6 +82,52 @@ interface HistoryData {
   list?: HistoryRawItem[]
 }
 
+interface FavoriteFolderRaw {
+  id?: number
+  title?: string
+  media_count?: number
+  cover?: string
+  intro?: string
+  attr?: number
+}
+
+interface FavoriteResourceRaw {
+  id?: number
+  type?: number
+  title?: string
+  cover?: string
+  intro?: string
+  duration?: number
+  upper?: { mid?: number; name?: string; face?: string }
+  cnt_info?: { play?: number }
+  pubtime?: number
+  fav_time?: number
+  bvid?: string
+  bv_id?: string
+  attr?: number
+  link?: string
+}
+
+interface FavoriteResourceData {
+  info?: FavoriteFolderRaw
+  medias?: FavoriteResourceRaw[]
+  has_more?: boolean
+}
+
+interface WatchLaterRawItem {
+  aid?: number
+  bvid?: string
+  title?: string
+  pic?: string
+  desc?: string
+  duration?: number
+  owner?: { mid?: number; name?: string; face?: string }
+  stat?: { view?: number }
+  pubdate?: number
+  progress?: number
+  add_at?: number
+}
+
 const API = 'https://api.bilibili.com'
 
 async function getJson<T>(url: string): Promise<T> {
@@ -118,7 +170,7 @@ async function postForm<T = null>(url: string, form: Record<string, string>): Pr
 }
 
 function normalizeImage(url = ''): string {
-  return url.startsWith('//') ? `https:${url}` : url
+  return url.startsWith('//') ? `https:${url}` : url.replace(/^http:\/\//, 'https://')
 }
 
 function normalizeVideo(item: PopularItem | RecommendItem): BiliVideo | null {
@@ -180,6 +232,80 @@ function normalizeHistoryItem(item: HistoryRawItem): BiliHistoryItem | null {
     duration: item.duration ?? 0,
     badge: item.badge || undefined,
     url: historyUrl(item, oid, business),
+  }
+}
+
+function normalizeFavoriteFolder(item: FavoriteFolderRaw): BiliFavoriteFolder | null {
+  if (!item.id || !item.title)
+    return null
+
+  return {
+    id: item.id,
+    title: item.title,
+    mediaCount: item.media_count ?? 0,
+    cover: normalizeImage(item.cover ?? ''),
+    intro: item.intro ?? '',
+    isPrivate: Boolean((item.attr ?? 0) & 1),
+  }
+}
+
+function favoriteItemUrl(item: FavoriteResourceRaw): string {
+  const bvid = item.bvid || item.bv_id
+  if (bvid)
+    return `https://www.bilibili.com/video/${bvid}`
+  if (item.type === 2 && item.id)
+    return `https://www.bilibili.com/video/av${item.id}`
+  if (item.link?.startsWith('https://') || item.link?.startsWith('http://'))
+    return normalizeImage(item.link)
+  return `https://search.bilibili.com/all?keyword=${encodeURIComponent(item.title ?? '')}`
+}
+
+function normalizeFavoriteItem(item: FavoriteResourceRaw): BiliFavoriteItem | null {
+  if (!item.id || !item.title)
+    return null
+
+  const upper = item.upper
+  return {
+    id: item.id,
+    type: item.type ?? 2,
+    bvid: item.bvid || item.bv_id || undefined,
+    title: item.title,
+    cover: normalizeImage(item.cover ?? ''),
+    intro: item.intro ?? '',
+    duration: item.duration ?? 0,
+    authorName: upper?.name || '未知 UP 主',
+    authorMid: upper?.mid ?? 0,
+    authorFace: normalizeImage(upper?.face ?? ''),
+    view: item.cnt_info?.play ?? 0,
+    published: item.pubtime ?? 0,
+    favoriteAt: item.fav_time ?? 0,
+    invalid: (item.attr ?? 0) !== 0,
+    url: favoriteItemUrl(item),
+  }
+}
+
+function normalizeWatchLaterItem(item: WatchLaterRawItem): BiliWatchLaterItem | null {
+  if (!item.aid || !item.bvid || !item.title)
+    return null
+
+  const owner = item.owner
+  return {
+    aid: item.aid,
+    bvid: item.bvid,
+    title: item.title,
+    pic: normalizeImage(item.pic ?? ''),
+    description: item.desc ?? '',
+    duration: item.duration ?? 0,
+    owner: {
+      mid: owner?.mid ?? 0,
+      name: owner?.name || '未知 UP 主',
+      face: normalizeImage(owner?.face ?? ''),
+    },
+    view: item.stat?.view ?? 0,
+    published: item.pubdate ?? 0,
+    progress: item.progress ?? 0,
+    addedAt: item.add_at ?? 0,
+    url: `https://www.bilibili.com/video/${item.bvid}`,
   }
 }
 
@@ -313,6 +439,82 @@ async function deleteHistory(oid: number, business: string, csrf: string): Promi
   })
 }
 
+async function getFavoriteFolders(mid: number): Promise<BiliFavoriteFolder[]> {
+  const params = new URLSearchParams({
+    up_mid: String(mid),
+    type: '2',
+  })
+  const data = await getJson<{ list?: FavoriteFolderRaw[] }>(`${API}/x/v3/fav/folder/created/list-all?${params}`)
+  return (data.list ?? [])
+    .map(normalizeFavoriteFolder)
+    .filter((folder): folder is BiliFavoriteFolder => Boolean(folder))
+}
+
+async function getFavoritePage(
+  mediaId: number,
+  page = 1,
+  sort: BiliFavoriteSort = 'mtime',
+  keyword = '',
+): Promise<BiliFavoritePage> {
+  const params = new URLSearchParams({
+    media_id: String(mediaId),
+    pn: String(page),
+    ps: '20',
+    order: sort,
+    platform: 'web',
+  })
+  if (keyword.trim())
+    params.set('keyword', keyword.trim())
+
+  const data = await getJson<FavoriteResourceData>(`${API}/x/v3/fav/resource/list?${params}`)
+  return {
+    folder: data.info ? normalizeFavoriteFolder(data.info) : null,
+    items: (data.medias ?? [])
+      .map(normalizeFavoriteItem)
+      .filter((item): item is BiliFavoriteItem => Boolean(item)),
+    page,
+    hasMore: Boolean(data.has_more),
+  }
+}
+
+async function deleteFavorite(mediaId: number, resourceId: number, resourceType: number, csrf: string): Promise<void> {
+  await postForm(`${API}/x/v3/fav/resource/batch-del`, {
+    media_id: String(mediaId),
+    resources: `${resourceId}:${resourceType}`,
+    platform: 'web',
+    csrf,
+  })
+}
+
+async function getWatchLater(): Promise<BiliWatchLaterPage> {
+  const data = await getJson<{ count?: number; list?: WatchLaterRawItem[] }>(`${API}/x/v2/history/toview`)
+  const items = (data.list ?? [])
+    .map(normalizeWatchLaterItem)
+    .filter((item): item is BiliWatchLaterItem => Boolean(item))
+  return {
+    count: data.count ?? items.length,
+    items,
+  }
+}
+
+async function deleteWatchLater(aid: number, csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/toview/del`, {
+    aid: String(aid),
+    csrf,
+  })
+}
+
+async function deleteViewedWatchLater(csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/toview/del`, {
+    viewed: 'true',
+    csrf,
+  })
+}
+
+async function clearWatchLater(csrf: string): Promise<void> {
+  await postForm(`${API}/x/v2/history/toview/clear`, { csrf })
+}
+
 export default defineBackground(() => {
   browser.runtime.onMessage.addListener(async (message: ApiRequest): Promise<ApiResponse<unknown>> => {
     try {
@@ -335,6 +537,27 @@ export default defineBackground(() => {
           return { ok: true, data: null }
         case 'historyDelete':
           await deleteHistory(message.oid, message.business, message.csrf)
+          return { ok: true, data: null }
+        case 'favoriteFolders':
+          return { ok: true, data: await getFavoriteFolders(message.mid) }
+        case 'favoritePage':
+          return {
+            ok: true,
+            data: await getFavoritePage(message.mediaId, message.page ?? 1, message.sort ?? 'mtime', message.keyword ?? ''),
+          }
+        case 'favoriteDelete':
+          await deleteFavorite(message.mediaId, message.resourceId, message.resourceType, message.csrf)
+          return { ok: true, data: null }
+        case 'watchLater':
+          return { ok: true, data: await getWatchLater() }
+        case 'watchLaterDelete':
+          await deleteWatchLater(message.aid, message.csrf)
+          return { ok: true, data: null }
+        case 'watchLaterDeleteViewed':
+          await deleteViewedWatchLater(message.csrf)
+          return { ok: true, data: null }
+        case 'watchLaterClear':
+          await clearWatchLater(message.csrf)
           return { ok: true, data: null }
         default:
           return { ok: false, error: 'Unknown request' }
