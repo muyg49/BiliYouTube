@@ -1,0 +1,190 @@
+.byt-watch-avatar-button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.byt-watch-popover[hidden] {
+  display: none !important;
+}
+
+.byt-watch-popover {
+  position: fixed;
+  z-index: 2147483647;
+  top: 52px;
+  right: 14px;
+  width: min(390px, calc(100vw - 28px));
+  max-height: min(620px, calc(100vh - 68px));
+  overflow-y: auto;
+  border: 1px solid var(--byt-watch-border);
+  border-radius: 12px;
+  background: var(--byt-watch-bg);
+  color: var(--byt-watch-text);
+  box-shadow: 0 8px 30px rgb(0 0 0 / 22%);
+}
+
+.byt-watch-popover-header {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--byt-watch-border);
+  background: var(--byt-watch-bg);
+}
+
+.byt-watch-popover-header h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 24px;
+}
+
+.byt-watch-popover-header span {
+  color: var(--byt-watch-muted);
+  font-size: 11px;
+}
+
+.byt-watch-popover-status {
+  min-height: 110px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  color: var(--byt-watch-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.byt-watch-notification-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.byt-watch-notification-item {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 14px;
+  color: var(--byt-watch-text) !important;
+  text-decoration: none !important;
+}
+
+.byt-watch-notification-item:hover {
+  background: var(--byt-watch-surface);
+}
+
+.byt-watch-notification-avatar,
+.byt-watch-account-avatar {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--byt-watch-surface);
+  color: var(--byt-watch-text);
+  font-weight: 700;
+}
+
+.byt-watch-notification-avatar {
+  width: 42px;
+  height: 42px;
+}
+
+.byt-watch-notification-avatar img,
+.byt-watch-account-avatar img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.byt-watch-notification-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.byt-watch-notification-copy strong,
+.byt-watch-notification-copy span,
+.byt-watch-notification-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byt-watch-notification-copy strong,
+.byt-watch-notification-copy span {
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.byt-watch-notification-copy small {
+  color: var(--byt-watch-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.byt-watch-popover[data-mode="account"] {
+  width: min(320px, calc(100vw - 28px));
+}
+
+.byt-watch-account-header {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border-bottom: 1px solid var(--byt-watch-border);
+}
+
+.byt-watch-account-avatar {
+  width: 48px;
+  height: 48px;
+}
+
+.byt-watch-account-header > div {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+}
+
+.byt-watch-account-header strong,
+.byt-watch-account-header span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.byt-watch-account-header span {
+  color: var(--byt-watch-muted);
+  font-size: 12px;
+}
+
+.byt-watch-account-menu {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 0;
+}
+
+.byt-watch-account-menu a {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  color: var(--byt-watch-text) !important;
+  font-size: 14px;
+  text-decoration: none !important;
+}
+
+.byt-watch-account-menu a:hover {
+  background: var(--byt-watch-surface);
+}
+
+html.byt-watch-web-full .byt-watch-popover,
+html.byt-watch-browser-full .byt-watch-popover {
+  display: none !important;
+}
