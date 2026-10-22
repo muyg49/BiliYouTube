@@ -1,6 +1,6 @@
 # BiliYouTube Project Status
 
-Last updated: 2026-10-19
+Last updated: 2026-10-22
 
 ## Repository
 
@@ -19,9 +19,9 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 ## Current release state
 
 - Source package version remains `0.1.0`; release workflows override the build version at publish time.
-- Latest Firefox AMO release: `0.2.8`, submitted 2026-10-19. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139871`; publish run `39273467537` succeeded.
-- Firefox `0.2.8` includes the post-`0.2.7` homepage sidebar/topic-search fixes and the playback-speed/loudness rework from PR #13 and PR #14.
-- Earlier AMO releases on 2026-10-19: `0.2.0` through `0.2.7`.
+- Latest Firefox AMO release: `0.2.9`, submitted 2026-10-22. Validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5152225`; publish run `39776340944` succeeded.
+- Firefox `0.2.9` adds a clickable internal `你` hub for history, playlists and Watch Later while keeping Bilibili favorite folders represented by the existing `播放列表` view; no duplicate standalone favorites entry is exposed.
+- Earlier AMO releases on 2026-10-19: `0.2.0` through `0.2.8`.
 
 ## Implemented
 
@@ -49,6 +49,7 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Homepage cards provide delayed muted moving previews using Bilibili playback streams and release preview media when hover ends.
 - Three-dot card menu is functional and YouTube-like: Watch Later, save to Bilibili favorite folder, copy video link, session-only `不感兴趣`, and session-only `不推荐此频道`.
 - Watch Later/favorite actions reuse the current Bilibili session and CSRF token without broad cookie permissions.
+- The sidebar `你` heading is clickable and opens an internal personal-library hub with shortcuts for history, playlists and Watch Later plus recent-watch previews.
 
 ### Internal subscriptions, Dynamic and channels
 
@@ -65,6 +66,7 @@ Do not copy source code from BewlyCat, YouTubeCat, Bilibili-Evolved, or other pr
 - Playlists: Bilibili favorite folders shown as YouTube-style playlists, detail page, search, sorting, paging, play-all and remove-from-folder.
 - Watch Later: search, per-item removal, remove-viewed, clear-all, progress and play-all.
 - Favorite-folder cover enrichment uses folder metadata and first-media fallback.
+- Bilibili favorites remain represented by the playlist system; there is no redundant separate `收藏` navigation entry.
 
 ### Account and notification behavior
 
@@ -145,6 +147,8 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 - PR #14 (`Make speed memory authoritative and implement real loudness leveling`) passed run `39272737660`; merged as `60b7023bef1f656c8b79fa896ae0bbc8e9bd765d`. Main run `39272814389` passed.
 - Status documentation run `39273011012` passed on `main` before the `0.2.8` release.
 - Firefox `0.2.8` publish run `39273467537` succeeded. AMO validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5139871`.
+- Main CI run `39772491382` for the final clickable-`你` implementation succeeded before release.
+- Firefox `0.2.9` publish run `39776340944` succeeded. AMO validation: 0 errors, 1 warning, 0 notices. AMO file ID: `5152225`.
 
 ## Architecture decisions
 
@@ -166,7 +170,7 @@ Requests reuse the existing Bilibili browser session. No broad `cookies` permiss
 
 ## Next priorities
 
-1. Validate Firefox `0.2.8` in signed-in Firefox: collapse/expand the homepage sidebar repeatedly and verify compact-rail layout at common viewport widths.
+1. Validate Firefox `0.2.9` in signed-in Firefox, especially the clickable `你` hub and transitions back to history, playlists and Watch Later.
 2. Switch rapidly between all homepage topic chips, revisit previously opened topics, and verify cached/prefetched pages appear immediately without chip-row movement.
 3. Confirm the WBI topic/search path avoids the observed intermittent HTTP 412 under normal signed-in browsing; verify cached fallback behavior if Bilibili temporarily rejects a request.
 4. Validate playback-speed memory across full Firefox restarts, quality changes, pause/resume, multi-part videos and SPA navigation; confirm native user speed changes persist while unsolicited resets do not.
